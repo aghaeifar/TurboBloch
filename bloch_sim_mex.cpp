@@ -105,7 +105,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         m0.col(2).setOnes();
     }
 
-
+    
+    
     // start maltab using -nojvm then stdout and stderr are visible
 //    std::cout << "b1:\n" << b1<< std::endl;
 //    std::cout << "gr:\n" << gr<< std::endl;
@@ -114,7 +115,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //    std::cout << "pr:\n" << pr<< std::endl;
 //    std::cout << "sens:\n" << sens<< std::endl;
 //    std::cout << "m0:\n" << m0<< std::endl;
-
+    
     bloch_sim sim;
     if(sim.run(b1, gr, tp, b0, pr, T1, T2, sens, m0))
     {

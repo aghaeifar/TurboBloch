@@ -78,6 +78,7 @@ bloch_sim::bloch_sim()
 
 bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, VectorXd &e_b0, MatrixXcd &e_sens, MatrixXd &e_pr, MatrixXd &e_m0, double T1, double T2)
 {
+    Eigen::setNbThreads(6);
     // Resize m_result
     m_result_x.resize(m_lNPos, m_lNTime);
     m_result_y.resize(m_lNPos, m_lNTime);
@@ -86,20 +87,29 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
     // Calculate the E1 and E2 values at each time step.
     Eigen::VectorXd e_e1 = (e_tp/T1).array().exp();
     Eigen::VectorXd e_e2 = (e_tp/T2).array().exp();
-    // Combined B1
+
+    clock_t t = clock();
+    // Combined B1    
     Eigen::MatrixXcd e_b1comb = e_b1 * e_sens.transpose(); // m_lNTime * m_lNPos
 //    std::cout<< "e_b1comb:\n" << e_b1comb << std::endl;
+    t = clock() - t;
+    std::cout<< "Preparation time1 " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
 
-    e_b0 *= TWOPI; // from Hz to rad;
+    e_b0 = e_b0 * TWOPI; // from Hz to rad;
+
+    t = clock();
+    // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
     Eigen::MatrixXd rotz = ((e_gr * e_pr.transpose()).rowwise() + e_b0.transpose()).array().colwise() * e_tp.array() * -1.0 * GAMMA_T; // m_lNTime * m_lNPos
     Eigen::MatrixXd rotx = e_b1comb.real().array().colwise() * e_tp.array() * -1.0 * GAMMA_T;
-    Eigen::MatrixXd roty = e_b1comb.imag().array().colwise() * e_tp.array() * +1.0 * GAMMA_T; // Hao Sun has changed this sign to '-', but I beleive the original '+' is correct.
+    Eigen::MatrixXd roty = e_b1comb.imag().array().colwise() * e_tp.array() * GAMMA_T; // Hao Sun has changed this sign to '-', but I beleive the original '+' is correct.
 //    std::cout<< "rotz:\n" << rotz << std::endl;
 //    std::cout<< "rotx:\n" << rotx << std::endl;
 //    std::cout<< "roty:\n" << roty << std::endl;
 
     MatrixXd e_m0t = e_m0.transpose(); // m_lNPos x 3 --> 3 x m_lNPos
-
+    t = clock() - t;
+    std::cout<< "Preparation time2 " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
+    t = clock();
     concurrency::parallel_for (size_t(0), m_lNPos, [&](size_t cpos){
     //for (size_t cpos=0; cpos<m_lNPos; cpos++){
         Eigen::Matrix3d rotmat;
@@ -117,7 +127,8 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
             //Eigen::VectorXd::Map(&m_result[cpos][ct][0], 3) = e_m0t.col(cpos);
         }
     });
-
+    t = clock() - t;
+    std::cout<< "Simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
     return true;
 }
 
@@ -264,7 +275,7 @@ bool bloch_sim::run(Eigen::MatrixXcd b1,   // m_lNTime x m_lNCoils
     clock_t t = clock();
     runkernel(b1, gr, tp, b0, sens, pr, m0, T1, T2);
     t = clock() - t;
-    std::cout<< " Finished within " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
+    std::cout<< " Total simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
     return true;
 }
 
