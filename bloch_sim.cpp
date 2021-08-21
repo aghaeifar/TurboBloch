@@ -279,6 +279,31 @@ bool bloch_sim::run(Eigen::MatrixXcd b1,   // m_lNTime x m_lNCoils
     return true;
 }
 
+
+bool bloch_sim::fastrun(MatrixXd rotx, VectorXd roty, VectorXd rotz, VectorXd e_e1, VectorXd e_e2, MatrixXd e_m0t)
+{
+    clock_t t = clock();
+    concurrency::parallel_for (size_t(0), m_lNPos, [&](size_t cpos){
+    //for (size_t cpos=0; cpos<m_lNPos; cpos++){
+        Eigen::Matrix3d rotmat;
+        Eigen::VectorXd m1;
+        for (size_t ct=0; ct<m_lNTime; ct++)
+        {
+            //std::cout<< "cpos:\n" << cpos << " " << ct << " " << m_lNTime<<std::endl;
+            calcrotmat(rotx(ct,cpos), roty(ct,cpos), rotz(ct,cpos), rotmat);
+            // m0: Current magnetization before rotation.
+            m1 = rotmat * e_m0t.col(cpos);
+            // Decay
+            m_result_x(cpos, ct) = e_m0t(0,cpos) = m1(0) * e_e2(ct);
+            m_result_y(cpos, ct) = e_m0t(1,cpos) = m1(1) * e_e2(ct);
+            m_result_z(cpos, ct) = e_m0t(2,cpos) = m1(2) * e_e1(ct) + 1.0 - e_e1(ct);
+            //Eigen::VectorXd::Map(&m_result[cpos][ct][0], 3) = e_m0t.col(cpos);
+        }
+    });
+    t = clock() - t;
+    std::cout<< "Simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
+}
+
 // ----------------------------------------------- //
 bool bloch_sim::getMagnetization(vector<vector<double>> &result)
 {
