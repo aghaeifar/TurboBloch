@@ -1,14 +1,37 @@
+%% compile with Microsoft Visual C++ 2019 
 clc
-mex -v COMPFLAGS='$COMPFLAGS /openmp' bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+mex bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+
+%% with ppl
+clc
+mex COMPFLAGS='$COMPFLAGS /DUSE_PPL' bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+
+%% with openmp
+clc
+mex COMPFLAGS='$COMPFLAGS /openmp' bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+
 % 
-%%
+%% with openmp and mkl 
 clc
-mex  COMPFLAGS='$COMPFLAGS /DEIGEN_USE_MKL_ALL /openmp /DMKL_ILP64' -I'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/include/' ...
+mex  COMPFLAGS='$COMPFLAGS /DEIGEN_USE_MKL_ALL /openmp /DMKL_LP64' -I'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/include/' ...
      -L'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/lib/intel64/' -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core...
      -L'C:/Program Files (x86)/Intel/oneAPI/compiler/2021.3.0/windows/compiler/lib/intel64_win' -llibiomp5md...
      bloch_sim_mex.cpp bloch_sim.cpp -R2018a
 
+ %%  ppl and mkl --> MATLAB crash
+clc
+mex  COMPFLAGS='$COMPFLAGS /DEIGEN_USE_MKL_ALL /DUSE_PPL /DMKL_LP64' -I'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/include/' ...
+     -L'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/lib/intel64/' -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core...
+     -L'C:/Program Files (x86)/Intel/oneAPI/compiler/2021.3.0/windows/compiler/lib/intel64_win' -llibiomp5md...
+     bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+ 
 % COPTIMFLAGS="-O3 -DNDEBUG"
+
+%% compile with MinGW64 Compiler (C++) and openmp
+% see https://uk.mathworks.com/matlabcentral/answers/279171
+clc
+mex CXXFLAGS='$CXXFLAGS -std=c++11 -fno-math-errno -ffast-math -march=native -fopenmp' LDFLAGS=-fopenmp bloch_sim_mex.cpp bloch_sim.cpp -R2018a
+
 
 %% test speed
 gamma = 267522187.44;
@@ -23,14 +46,11 @@ tp = ones(ntime,1) * dur/ntime;
 gr = zeros(ntime, 3);
 b0 = zeros(npos, 1);
 pr = rand(npos, 3);
-
+tic
 bloch_sim_mex(b1, gr, tp, b0, pr);
-
+toc
 
 %% compare runtime
-clear
-ntime = 800; % number of samples
-npos = 100000; 
 
 e_sens = rand(npos,1) + 1j*rand(npos,1);
 e_b1 = rand(ntime,1)+ 1j*rand(ntime,1);
@@ -60,9 +80,10 @@ tic
     roty = imag(e_b1comb) .* e_tp * GAMMA_T; 
     e_m0t = e_m0';
 toc
-
+%%
 tic
 ge_b1comb = ge_b1 * ge_sens';
+e_b1comb = gather(ge_b1comb);
 toc
 
 tic
@@ -70,6 +91,11 @@ tic
     grotx = real(ge_b1comb) .* ge_tp * -1.0 * gGAMMA_T;
     groty = imag(ge_b1comb) .* ge_tp * gGAMMA_T; 
     ge_m0t = ge_m0';
+    
+    e_m0t = gather(ge_m0t);
+    rotz = gather(grotz);
+    rotx = gather(grotx);
+    roty = gather(groty);
 toc
 
 %%
