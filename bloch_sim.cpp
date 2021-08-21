@@ -145,7 +145,7 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
     // Combined B1    
     Eigen::MatrixXcd e_b1comb = e_b1 * e_sens.transpose(); // m_lNTime * m_lNPos
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Preparation time1 " << elapsed.count() << " milisecond" << std::endl;
+    std::cout<< "Preparation time1 " << elapsed.count() << " millisecond" << std::endl;
 
     e_b0 = e_b0 * TWOPI; // from Hz to rad;
 
@@ -157,7 +157,7 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
 
     MatrixXd e_m0t = e_m0.transpose(); // m_lNPos x 3 --> 3 x m_lNPos
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Preparation time2 " << elapsed.count() << " milisecond" << std::endl;
+    std::cout<< "Preparation time2 " << elapsed.count() << " millisecond" << std::endl;
     start = std::chrono::system_clock::now();
 #if defined(_MSC_VER) && defined(USE_PPL)
     std::cout << "Using PPL"<<std::endl;
@@ -193,7 +193,7 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
     );
 #endif
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Simulation time " << elapsed.count() << " milisecond" << std::endl;
+    std::cout<< "Simulation time " << elapsed.count() << " millisecond" << std::endl;
     return true;
 }
 
