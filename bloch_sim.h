@@ -30,7 +30,7 @@ public:
              double T1, double T2,  // second
              Eigen::MatrixXcd sens, // m_lNPos x m_lNCoils
              Eigen::MatrixXd m0);
-
+/*
     // rotx, roty, rotz is precalculated in MATLAB it is hard to beat MATLAB when large matrix are multiplied
     bool fastrun(Eigen::MatrixXd rotx,     // m_lNTime * m_lNPos
                  Eigen::VectorXd roty,     // m_lNTime * m_lNPos
@@ -38,7 +38,7 @@ public:
                  Eigen::VectorXd e1,       // m_lNTime x 1
                  Eigen::VectorXd e2,       // m_lNTime x 1
                  Eigen::MatrixXd m0);      // 3 x m_lNPos
-
+*/
     bool getMagnetization(vector<vector<double>> &result); // 3 x m_lNPos ; is not [m_lNPos x 3] for copying faster
     bool getMagnetizationAll(vector<vector<double>> &result_x, vector<vector<double>> &result_y, vector<vector<double>> &result_z); // m_lNPos x m_lNTime
     bool getMagnetization(Eigen::MatrixXd &result); // m_lNPos x 3;  use this method where possible

@@ -10,11 +10,14 @@
 #include <math.h>
 #include <numeric>
 #include <algorithm>
-#include <time.h>
+#include <chrono>
+#include <ctime>
 #include "bloch_sim.h"
 
+#if defined(_MSC_VER) && defined(USE_PPL)
 #include <windows.h>
 #include <ppl.h>
+#endif
 
 #define GAMMA_T 267522187.44
 #define TWOPI	6.283185307179586
@@ -69,6 +72,56 @@ void calcrotmat(double nx, double ny, double nz, Eigen::Matrix3d &rmat)
     }
 }
 
+void calcrotmat(double nx, double ny, double nz, double rmat[][3])
+{
+    double ar, ai, br, bi, hp, cp, sp;
+    double arar, aiai, arai2, brbr, bibi, brbi2, arbi2, aibr2, arbr2, aibi2;
+    double phi;
+
+    phi = sqrt(nx*nx + ny*ny + nz*nz);
+
+    if (phi == 0.0)
+    {
+        rmat[0][0] = 1; rmat[0][1] = 0; rmat[0][2] = 0;
+        rmat[1][0] = 0; rmat[1][1] = 1; rmat[1][2] = 0;
+        rmat[2][0] = 0; rmat[2][1] = 0; rmat[2][2] = 1;
+    }
+    else
+    {
+        // Cayley-Klein parameters
+        hp = phi/2;
+        cp = cos(hp);
+        sp = sin(hp)/phi;	// /phi because [nx, ny, nz] is unit length in defs.
+        ar = cp;
+        ai = -nz*sp;
+        br = ny*sp;
+        bi = -nx*sp;
+
+        // Auxiliary variables to speed this up
+        arar  = ar*ar;
+        aiai  = ai*ai;
+        arai2 = 2*ar*ai;
+        brbr  = br*br;
+        bibi  = bi*bi;
+        brbi2 = 2*br*bi;
+        arbi2 = 2*ar*bi;
+        aibr2 = 2*ai*br;
+        arbr2 = 2*ar*br;
+        aibi2 = 2*ai*bi;
+
+        // Make rotation matrix.
+        rmat[0][0] =  arar  -aiai -brbr +bibi;
+        rmat[0][1] = -arai2 -brbi2;
+        rmat[0][2] = -arbr2 +aibi2;
+        rmat[1][0] =  arai2 -brbi2;
+        rmat[1][1] =  arar  -aiai +brbr -bibi;
+        rmat[1][2] = -aibr2 -arbi2;
+        rmat[2][0] =  arbr2 +aibi2;
+        rmat[2][1] =  arbi2 -aibr2;
+        rmat[2][2] =  arar  +aiai -brbr -bibi;
+    }
+}
+
 
 bloch_sim::bloch_sim()
 {
@@ -88,47 +141,59 @@ bool bloch_sim::runkernel(MatrixXcd &e_b1, MatrixXd &e_gr, VectorXd &e_tp, Vecto
     Eigen::VectorXd e_e1 = (e_tp/T1).array().exp();
     Eigen::VectorXd e_e2 = (e_tp/T2).array().exp();
 
-    clock_t t = clock();
+    auto start = std::chrono::system_clock::now();
     // Combined B1    
     Eigen::MatrixXcd e_b1comb = e_b1 * e_sens.transpose(); // m_lNTime * m_lNPos
-//    std::cout<< "e_b1comb:\n" << e_b1comb << std::endl;
-    t = clock() - t;
-    std::cout<< "Preparation time1 " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Preparation time1 " << elapsed.count() << " milisecond" << std::endl;
 
     e_b0 = e_b0 * TWOPI; // from Hz to rad;
 
-    t = clock();
+    start = std::chrono::system_clock::now();
     // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
     Eigen::MatrixXd rotz = ((e_gr * e_pr.transpose()).rowwise() + e_b0.transpose()).array().colwise() * e_tp.array() * -1.0 * GAMMA_T; // m_lNTime * m_lNPos
     Eigen::MatrixXd rotx = e_b1comb.real().array().colwise() * e_tp.array() * -1.0 * GAMMA_T;
     Eigen::MatrixXd roty = e_b1comb.imag().array().colwise() * e_tp.array() * GAMMA_T; // Hao Sun has changed this sign to '-', but I beleive the original '+' is correct.
-//    std::cout<< "rotz:\n" << rotz << std::endl;
-//    std::cout<< "rotx:\n" << rotx << std::endl;
-//    std::cout<< "roty:\n" << roty << std::endl;
 
     MatrixXd e_m0t = e_m0.transpose(); // m_lNPos x 3 --> 3 x m_lNPos
-    t = clock() - t;
-    std::cout<< "Preparation time2 " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
-    t = clock();
-    concurrency::parallel_for (size_t(0), m_lNPos, [&](size_t cpos){
-    //for (size_t cpos=0; cpos<m_lNPos; cpos++){
-        Eigen::Matrix3d rotmat;
-        Eigen::VectorXd m1;
-        for (size_t ct=0; ct<m_lNTime; ct++)
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Preparation time2 " << elapsed.count() << " milisecond" << std::endl;
+    start = std::chrono::system_clock::now();
+#if defined(_MSC_VER) && defined(USE_PPL)
+    std::cout << "Using PPL"<<std::endl;
+    concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
+#else
+#ifdef _OPENMP
+    std::cout << "Using OpenMP"<<std::endl;
+    #pragma omp parallel
+    #pragma omp for
+#endif
+    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
+#endif
+//        Eigen::Matrix3d rotmat;
+//        Eigen::VectorXd m1;
+        double rotmat[3][3], m1[3];
+        for (int ct=0; ct<(int)m_lNTime; ct++)
         {
-            //std::cout<< "cpos:\n" << cpos << " " << ct << " " << m_lNTime<<std::endl;
+            // I don't use Eigen here because OpenMP and MKL don't work well toghether
             calcrotmat(rotx(ct,cpos), roty(ct,cpos), rotz(ct,cpos), rotmat);
             // m0: Current magnetization before rotation.
-            m1 = rotmat * e_m0t.col(cpos);
+            //m1 = rotmat * e_m0t.col(cpos);
+
+            m1[0] = rotmat[0][0]*e_m0t.col(cpos)(0) + rotmat[0][1]*e_m0t.col(cpos)(1) + rotmat[0][2]*e_m0t.col(cpos)(2);
+            m1[1] = rotmat[1][0]*e_m0t.col(cpos)(0) + rotmat[1][1]*e_m0t.col(cpos)(1) + rotmat[1][2]*e_m0t.col(cpos)(2);
+            m1[2] = rotmat[2][0]*e_m0t.col(cpos)(0) + rotmat[2][1]*e_m0t.col(cpos)(1) + rotmat[2][2]*e_m0t.col(cpos)(2);
             // Decay
-            m_result_x(cpos, ct) = e_m0t(0,cpos) = m1(0) * e_e2(ct);
-            m_result_y(cpos, ct) = e_m0t(1,cpos) = m1(1) * e_e2(ct);
-            m_result_z(cpos, ct) = e_m0t(2,cpos) = m1(2) * e_e1(ct) + 1.0 - e_e1(ct);
-            //Eigen::VectorXd::Map(&m_result[cpos][ct][0], 3) = e_m0t.col(cpos);
+            m_result_x(cpos, ct) = e_m0t(0,cpos) = m1[0] * e_e2(ct);
+            m_result_y(cpos, ct) = e_m0t(1,cpos) = m1[1] * e_e2(ct);
+            m_result_z(cpos, ct) = e_m0t(2,cpos) = m1[2] * e_e1(ct) + 1.0 - e_e1(ct);
         }
-    });
-    t = clock() - t;
-    std::cout<< "Simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
+    }
+#if defined(_MSC_VER) && defined(USE_PPL)
+    );
+#endif
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Simulation time " << elapsed.count() << " milisecond" << std::endl;
     return true;
 }
 
@@ -272,14 +337,11 @@ bool bloch_sim::run(Eigen::MatrixXcd b1,   // m_lNTime x m_lNCoils
 
     //std::cout<< "Pos Time Coil = " << m_lNPos << " " << m_lNTime << " " << m_lNCoils << std::endl;
     // =================== Do The Simulation! ===================
-    clock_t t = clock();
     runkernel(b1, gr, tp, b0, sens, pr, m0, T1, T2);
-    t = clock() - t;
-    std::cout<< " Total simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
     return true;
 }
 
-
+/*
 bool bloch_sim::fastrun(MatrixXd rotx, VectorXd roty, VectorXd rotz, VectorXd e_e1, VectorXd e_e2, MatrixXd e_m0t)
 {
     clock_t t = clock();
@@ -303,6 +365,7 @@ bool bloch_sim::fastrun(MatrixXd rotx, VectorXd roty, VectorXd rotz, VectorXd e_
     t = clock() - t;
     std::cout<< "Simulation time " << (float)t/CLOCKS_PER_SEC << " second" << std::endl;
 }
+*/
 
 // ----------------------------------------------- //
 bool bloch_sim::getMagnetization(vector<vector<double>> &result)

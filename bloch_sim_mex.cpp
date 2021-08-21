@@ -16,7 +16,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 
     long nRow, nCol;
 
-    std::cout << "Parsing data" << std::endl;
+    //std::cout << "Parsing data" << std::endl;
     if (nrhs >= 5)
     {
         // map B1
@@ -119,7 +119,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     bloch_sim sim;
     if(sim.run(b1, gr, tp, b0, pr, T1, T2, sens, m0))
     {
-        mexPrintf("Finished successfully\n");
+        //mexPrintf("Finished successfully\n");
         Eigen::MatrixXd result(pr.rows(), 3);
         sim.getMagnetization(result);
         //std::cout << "Results:\n"<< result << std::endl;
