@@ -31,3 +31,10 @@ I used MSVC 2019 to compile mex file; however, following command should work if 
     mex CXXFLAGS='$CXXFLAGS -std=c++11 -fopenmp' LDFLAGS=-fopenmp bloch_sim_mex.cpp bloch_sim.cpp -R2018a
 
 Let me know if you find out other approaches to accelerate the program.
+
+--------------------
+To use GPU:
+install the most recent driver for your NVIDIA adapter
+install CUDA Toolkit : https://developer.nvidia.com/cuda-downloads
+run some CUDA samples and ensure they work fine. I tried this which uses cuBLAS : https://github.com/NVIDIA/cuda-samples/tree/master/Samples/simpleCUBLAS
+please note some CUDA versions are compatible with specific MS Visual Studio. I tried cuda_11.4 with Visual Studio 2019

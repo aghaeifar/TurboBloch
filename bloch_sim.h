@@ -1,74 +1,43 @@
-#include <vector>
 #include <complex>
 #include <iostream>
 
 //#define EIGEN_USE_MKL_ALL
-#include "./eigen-3.3.9/Eigen/Dense"
 
 using namespace std;
-using namespace Eigen;
-
 
 class bloch_sim
 {
 public:
-    bloch_sim();
-    bool run(vector<vector<complex<double>>> b1,// m_lNTime x m_lNCoils
-             vector<vector<double>> gr,         // m_lNTime x 3
-             vector<double> tp,                 // second  m_lNTime x 1
-             vector<double> b0,                 // m_lNPos x 1
-             vector<vector<double>> pr,         // m_lNPos x 3
-             double T1, double T2,              // second
-             vector<vector<complex<double>>> sens = vector<vector<complex<double>>>(), // m_lNPos x m_lNCoils
-             vector<vector<double>> m0 = vector<vector<double>>()); // m_lNPos x 3
+    bloch_sim(long nPositions, long nTime, long nCoils = 1);
+    ~bloch_sim();
 
-    bool run(Eigen::MatrixXcd b1,   // m_lNTime x m_lNCoils
-             Eigen::MatrixXd gr,    // m_lNTime x 3
-             Eigen::VectorXd tp,    // second  m_lNTime x 1
-             Eigen::VectorXd b0,    // m_lNPos x 1
-             Eigen::MatrixXd pr,    // m_lNPos x 3
-             double T1, double T2,  // second
-             Eigen::MatrixXcd sens, // m_lNPos x m_lNCoils
-             Eigen::MatrixXd m0);
-/*
-    // rotx, roty, rotz is precalculated in MATLAB it is hard to beat MATLAB when large matrix are multiplied
-    bool fastrun(Eigen::MatrixXd rotx,     // m_lNTime * m_lNPos
-                 Eigen::VectorXd roty,     // m_lNTime * m_lNPos
-                 Eigen::VectorXd rotz,     // m_lNTime * m_lNPos
-                 Eigen::VectorXd e1,       // m_lNTime x 1
-                 Eigen::VectorXd e2,       // m_lNTime x 1
-                 Eigen::MatrixXd m0);      // 3 x m_lNPos
-*/
-    bool getMagnetization(vector<vector<double>> &result); // 3 x m_lNPos ; is not [m_lNPos x 3] for copying faster
-    bool getMagnetizationAll(vector<vector<double>> &result_x, vector<vector<double>> &result_y, vector<vector<double>> &result_z); // m_lNPos x m_lNTime
-    bool getMagnetization(Eigen::MatrixXd &result); // m_lNPos x 3;  use this method where possible
+    bool run(std::complex<double> *b1=NULL,   // m_lNTime x m_lNCoils : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+             double *gr=NULL,                 // m_lNTime x 3 [Tesla] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             double tp=1e-3,                  // m_lNTime x 1 [second]
+             double *b0=NULL,                 // m_lNPos x 1  [Radian]
+             double *pr=NULL,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             double T1=99, double T2=99,      // [second]
+             std::complex<double> *sens=NULL, // m_lNCoils x m_lNPos : {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+             double *m0=NULL);                // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 
-
-    vector<vector<vector<double>>> getMagnetizationAll();
+    bool getMagnetization(double result[]); // m_lNPos x 3
 
 protected:
-    bool prep(vector<vector<complex<double>>> &b1,
-              vector<vector<double>> &gr,
-              vector<double> &tp,
-              vector<double> &b0,
-              vector<vector<double>> &pr,
-              vector<vector<complex<double>>> &sens,
-              vector<vector<double>> &m0);
-
-    bool runkernel(Eigen::MatrixXcd &e_b1,
-                   Eigen::MatrixXd  &e_gr,
-                   Eigen::VectorXd  &e_tp,
-                   Eigen::VectorXd  &e_b0,
-                   Eigen::MatrixXcd &e_sens,
-                   Eigen::MatrixXd  &e_pr,
-                   Eigen::MatrixXd  &e_m0,
-                   double T1, double T2);
-
+    void print(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+               double *gr,                 // m_lNTime x 3 [Tesla] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+               double tp,                  // m_lNTime x 1 [second]
+               double *b0,                 // m_lNPos x 1  [Radian]
+               double *pr,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+               double T1, double T2,       // [second]
+               std::complex<double> *sens, // m_lNCoils x m_lNPos : {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+               double *m0);
+    //int gpuMatrixMul(std::complex<double> *mat_in1, std::complex<double> *mat_in2, std::complex<double> *mat_out, size_t row, size_t col_row, size_t col);
     // m_lNPos is in the first dim as loop is over it
-    vector<vector<vector<double>>> m_result;
-    Eigen::MatrixXd m_result_x, m_result_y, m_result_z; // m_lNPos x m_lNTime
-    size_t m_lNTime;	/* Number of time points. 	 */
-    size_t m_lNPos;     /* Number of positions.  Calculated from nposN and nposM, depends on them. */
-    size_t m_lNCoils;   /* Number of coils */
+    //Eigen::MatrixXd m_result_x, m_result_y, m_result_z; // m_lNPos x m_lNTime
+    double *m_magnetization; // m_lNTime * m_lNPos
+    std::complex<double> *m_cb1; // combined b1
+    int m_lNTime;	/* Number of time points. 	 */
+    int m_lNPos;    /* Number of positions.  Calculated from nposN and nposM, depends on them. */
+    int m_lNCoils;  /* Number of coils */
 
 };
