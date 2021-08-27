@@ -41,15 +41,18 @@ clc
 cd('D:\OneDrive - University College London\Matlab\B1GUI\ipopt_lib\bloch_simulator')
 % NVCCFLAGS='$NVCCFLAGS
 mexcuda -DUSE_GPU -L'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\lib\x64' -lcublas -lcudart ...
-       bloch_sim_mex.cpp bloch_sim.cpp ./gpu_matrix_mul/gpu_matrix_mul.cu -R2018a
+        -DMKL_LP64 -I'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/include/'...
+        -L'C:/Program Files (x86)/Intel/oneAPI/mkl/2021.3.0/lib/intel64/' -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core ...
+        -L'C:/Program Files (x86)/Intel/oneAPI/compiler/2021.3.0/windows/compiler/lib/intel64_win' -llibiomp5md...
+        bloch_sim_mex.cpp bloch_sim.cpp ./gpu_matrix_mul/gpu_matrix_mul.cu -R2018a
    
 %% test speed
 
 gamma = 267522187.44;
 flipangle = 90 * pi/180;
-ntime = 375; % number of samples
+ntime = 400; % number of samples
 dur = 2; % second
-npos = 28000; % number of spatial positions
+npos = 28003; % number of spatial positions
 ncoil = 8;
 
 b1 = complex(ones(ntime,ncoil) * flipangle/gamma/dur/ncoil) ;

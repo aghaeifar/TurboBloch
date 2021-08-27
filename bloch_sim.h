@@ -12,7 +12,7 @@ public:
     ~bloch_sim();
 
     bool run(std::complex<double> *b1=NULL,   // m_lNTime x m_lNCoils : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
-             double *gr=NULL,                 // m_lNTime x 3 [Tesla] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             double *gr=NULL,                 // m_lNTime x 3 [Tesla/m] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
              double tp=1e-3,                  // m_lNTime x 1 [second]
              double *b0=NULL,                 // m_lNPos x 1  [Radian]
              double *pr=NULL,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
