@@ -34,8 +34,8 @@ protected:
     //int gpuMatrixMul(std::complex<double> *mat_in1, std::complex<double> *mat_in2, std::complex<double> *mat_out, size_t row, size_t col_row, size_t col);
     // m_lNPos is in the first dim as loop is over it
     //Eigen::MatrixXd m_result_x, m_result_y, m_result_z; // m_lNPos x m_lNTime
-    double *m_magnetization; // m_lNTime * m_lNPos
-    std::complex<double> *m_cb1; // combined b1
+    double *m_dMagnetization; // m_lNTime * m_lNPos
+    std::complex<double> *m_cdb1; // combined b1
     int m_lNTime;	/* Number of time points. 	 */
     int m_lNPos;    /* Number of positions.  Calculated from nposN and nposM, depends on them. */
     int m_lNCoils;  /* Number of coils */

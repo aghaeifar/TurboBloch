@@ -32,11 +32,12 @@
 #define TWOPI	6.283185307179586
 
 // Find the rotation matrix that rotates |n| radians about the vector given by nx,ny,nz
-void calcrotmat(double nx, double ny, double nz, double rmat[9])
+template <class T>
+void calcrotmat(T nx, T ny, T nz, T rmat[9])
 {
-    double ar, ai, br, bi, hp, cp, sp;
-    double arar, aiai, arai2, brbr, bibi, brbi2, arbi2, aibr2, arbr2, aibi2;
-    double phi;
+    T ar, ai, br, bi, hp, cp, sp;
+    T arar, aiai, arai2, brbr, bibi, brbi2, arbi2, aibr2, arbr2, aibi2;
+    T phi;
 
     phi = sqrt(nx*nx + ny*ny + nz*nz);
 
@@ -82,12 +83,14 @@ void calcrotmat(double nx, double ny, double nz, double rmat[9])
     }
 }
 
-void timekernel(std::complex<double> *b1, double *gr,
-                double *pr, double b0, double dt_gamma, double *m0,
-                double e1, double e2, long nNTime, double *output)
+
+template <class T>
+void timekernel(std::complex<T> *b1, T *gr,
+                T *pr, T b0, T dt_gamma, T *m0,
+                T e1, T e2, long nNTime, T *output)
 {
-    double rotx, roty, rotz, rotmat[9], m1[3];
-    double e1_1 = e1 - 1;
+    T rotx, roty, rotz, rotmat[9], m1[3];
+    T e1_1 = e1 - 1;
     std::copy(m0, m0+3, output);
     for (int ct=0; ct<nNTime; ct++)
     {
@@ -110,14 +113,14 @@ bloch_sim::bloch_sim(long nPositions, long nTime, long nCoils)
     m_lNPos = nPositions;
     m_lNTime = nTime;
     m_lNCoils = nCoils;
-    m_magnetization = new double[m_lNPos*3]();
-    m_cb1 = new std::complex<double>[nPositions*nTime](); // () init to zero
+    m_dMagnetization = new double[m_lNPos*3]();
+    m_cdb1 = new std::complex<double>[nPositions*nTime](); // () init to zero
 }
 
 bloch_sim::~bloch_sim()
 {
-    delete[] m_magnetization;
-    delete[] m_cb1;
+    delete[] m_dMagnetization;
+    delete[] m_cdb1;
 }
 
 
@@ -132,7 +135,6 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0,
                     std::complex<double> *sens, // m_lNCoils x m_lNPos : {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
                     double *m0)                 // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 {
-    auto start = std::chrono::system_clock::now();
     if (b1==NULL || gr==NULL || b0==NULL || pr==NULL || sens==NULL || m0==NULL)
     {
         std::cout << "Program found at least one input is NULL"<<std::endl;
@@ -144,28 +146,31 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0,
     double e2 = exp(-tp/T2);
     double tp_gamma = tp * GAMMA_T;
 
+    auto start = std::chrono::system_clock::now();
 #ifndef USE_GPU
     Eigen::MatrixXcd e_b1comb = b1_uc * e_sens; // m_lNTime * m_lNPos
 #endif
 
 #ifdef USE_GPU
-    // cuBLAS library uses column-major storage
+    // we can gain a lot in speed if we use float precision
     gpu_matrix_mul myGPU;
-    myGPU.mul(b1, sens, m_cb1, m_lNTime, m_lNCoils, m_lNPos);
+    myGPU.mul(b1, sens, m_cdb1, m_lNTime, m_lNCoils, m_lNPos);
 #endif
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     std::cout<< "preparation " << elapsed.count() << " millisecond" << std::endl;
+
     start = std::chrono::system_clock::now();
     // =================== Do The Simulation! ===================
     // m_cb1 : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
     concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
- //   for (int cpos=0; cpos<(int)m_lNPos; cpos++)
-        timekernel(m_cb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_magnetization+cpos*3);
-    });
+//    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
+        timekernel(m_cdb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+    }
+    );
 
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Simulation1 " << elapsed.count() << " millisecond" << std::endl;
+    std::cout<< "Simulation " << elapsed.count() << " millisecond" << std::endl;
 
 /* // was very slow, don't know why
     std::thread *threadarr = new std::thread[m_lNPos];
@@ -182,7 +187,7 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0,
 // ----------------------------------------------- //
 bool bloch_sim::getMagnetization(double result[])
 {
-    std::copy(m_magnetization, m_magnetization + m_lNPos*3, result);
+    std::copy(m_dMagnetization, m_dMagnetization + m_lNPos*3, result);
     return true;
 }
 
