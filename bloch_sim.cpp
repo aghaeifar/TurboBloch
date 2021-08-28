@@ -20,10 +20,6 @@
 #include "bloch_sim.h"
 
 #ifdef USE_GPU
-//#include <cuda_runtime.h>
-//#include <device_launch_parameters.h>
-//#include <cuda.h>
-//#include <cublas_v2.h>
 #include "./gpu_matrix_mul/gpu_matrix_mul.h"
 #endif
 
@@ -126,25 +122,20 @@ bloch_sim::~bloch_sim()
 
 // ----------------------------------------------- //
 
-bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
                     double *gr,                 // m_lNTime x 3 [Tesla/m] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-                    double tp,                  // m_lNTime x 1 [second]
+                    double td,                  // m_lNTime x 1 [second]
                     double *b0,                 // m_lNPos x 1  [Radian]
                     double *pr,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
                     double T1, double T2,       // [second]
-                    std::complex<double> *sens, // m_lNCoils x m_lNPos : {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+                    std::complex<double> *sens, // m_lNCoils x m_lNPos [Tesla/Volt]: {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
                     double *m0)                 // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 {
-    if (b1==NULL || gr==NULL || b0==NULL || pr==NULL || sens==NULL || m0==NULL)
+    if (b1==NULL || sens==NULL)
     {
         std::cout << "Program found at least one input is NULL"<<std::endl;
         return false;
     }
-
-    // Calculate the E1 and E2 values at each time step.
-    double e1 = exp(-tp/T1);
-    double e2 = exp(-tp/T2);
-    double tp_gamma = tp * GAMMA_T;
 
     auto start = std::chrono::system_clock::now();
 #ifndef USE_GPU
@@ -160,26 +151,40 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0,
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     std::cout<< "preparation " << elapsed.count() << " millisecond" << std::endl;
 
-    start = std::chrono::system_clock::now();
+    return run(m_cdb1, gr, td, b0, pr, T1, T2, m0);
+}
+
+bool bloch_sim::run(std::complex<double> *b1combined, double *gr, double td, double *b0, double *pr, double T1, double T2, double *m0)
+{
+    if (b1combined==NULL || gr==NULL || b0==NULL || pr==NULL || m0==NULL)
+    {
+        std::cout << "Program found at least one input is NULL"<<std::endl;
+        return false;
+    }
+    auto start = std::chrono::system_clock::now();
+    // Calculate the E1 and E2 values at each time step.
+    double e1 = exp(-td/T1);
+    double e2 = exp(-td/T2);
+    double tp_gamma = td * GAMMA_T;
     // =================== Do The Simulation! ===================
-    // m_cb1 : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
+    // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
     concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
 //    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
-        timekernel(m_cdb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+        timekernel(b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
     }
     );
 
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     std::cout<< "Simulation " << elapsed.count() << " millisecond" << std::endl;
 
-/* // was very slow, don't know why
-    std::thread *threadarr = new std::thread[m_lNPos];
-    for (int cpos=0; cpos<m_lNPos; cpos++)
-        threadarr[cpos] = std::thread(timekernel, m_cb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_magnetization+cpos*3);
-    for(int cpos=0; cpos<m_lNPos; cpos++)
-        threadarr[cpos].join();
-    delete[] threadarr;
-*/
+    /* // was very slow, don't know why
+        std::thread *threadarr = new std::thread[m_lNPos];
+        for (int cpos=0; cpos<m_lNPos; cpos++)
+            threadarr[cpos] = std::thread(timekernel, m_cb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_magnetization+cpos*3);
+        for(int cpos=0; cpos<m_lNPos; cpos++)
+            threadarr[cpos].join();
+        delete[] threadarr;
+    */
     return true;
 }
 
