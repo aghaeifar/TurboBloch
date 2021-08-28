@@ -25,8 +25,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         // map gr
         nRow = mxGetM(prhs[1]); // pos
         nCol = mxGetN(prhs[1]); // 3
-        if (nCol != 3)
-            mexErrMsgTxt("Expected input for gr is Nx3");
+        if (nRow != 3)
+            mexErrMsgTxt("Expected input for gr is 3xN");
         pgr = mxGetPr(prhs[1]);
 
         // map tp
@@ -44,10 +44,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         pb0 = mxGetPr(prhs[3]);
 
         // map pr
-        nPos = mxGetM(prhs[4]); // pos
-        nCol = mxGetN(prhs[4]); // 3
-        if (nCol != 3)
-            mexErrMsgTxt("Expected input for pr is Nx3");
+        nRow = mxGetM(prhs[4]); // pos
+        nPos = mxGetN(prhs[4]); // 3
+        if (nRow != 3)
+            mexErrMsgTxt("Expected input for pr is 3xN");
         ppr = mxGetPr(prhs[4]);
     }
     else
