@@ -16,6 +16,7 @@ https://github.com/NVIDIA/cuda-samples/tree/master/Samples/simpleCUBLAS
 Please note some CUDA versions are compatible with specific MS Visual Studio. I tried cuda_11.4 with Visual Studio 2019.
 
 **MATLAB Mex**
+
 MATLAB mex wrapper is provided and should work with MATLAB R2018a and newer releases. Use command below to compile mex file:
 
      mexcuda -DUSE_GPU -L'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\lib\x64' -lcublas -lcudart bloch_sim_mex.cpp bloch_sim.cpp ./gpu_matrix_mul/gpu_matrix_mul.cu -R2018a
