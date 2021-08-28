@@ -28,12 +28,12 @@
 #define TWOPI	6.283185307179586
 
 // Find the rotation matrix that rotates |n| radians about the vector given by nx,ny,nz
-template <class T>
-void calcrotmat(T nx, T ny, T nz, T rmat[9])
+
+void apply_rot_CayleyKlein(double nx, double ny, double nz, double *m0, double *m1)
 {
-    T ar, ai, br, bi, hp, cp, sp;
-    T arar, aiai, arai2, brbr, bibi, brbi2, arbi2, aibr2, arbr2, aibi2;
-    T phi;
+    double ar, ai, br, bi, hp, cp, sp;
+    double arar, aiai, arai2, brbr, bibi, brbi2, arbi2, aibr2, arbr2, aibi2;
+    double phi, rmat[9];
 
     phi = sqrt(nx*nx + ny*ny + nz*nz);
 
@@ -77,16 +77,39 @@ void calcrotmat(T nx, T ny, T nz, T rmat[9])
         rmat[7] =  arbi2 -aibr2;
         rmat[8] =  arar  +aiai -brbr -bibi;
     }
+
+    m1[0] = std::inner_product(rmat+0, rmat+3, m0, 0.0);
+    m1[1] = std::inner_product(rmat+3, rmat+6, m0, 0.0);
+    m1[2] = std::inner_product(rmat+6, rmat+9, m0, 0.0);
+}
+
+void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m1)
+{
+    // creating quaternion rotation vector
+    double q[4], t[3];
+    double phi = sqrt(nx*nx + ny*ny + nz*nz);
+    double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+    q[0] = nx * sp;
+    q[1] = ny * sp;
+    q[2] = nz * sp;
+    q[3] = cos(phi/2);
+    // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
+    t[0] = 2*(q[1]*m0[2] - q[2]*m0[1]);
+    t[1] = 2*(q[2]*m0[0] - q[0]*m0[2]);
+    t[2] = 2*(q[0]*m0[1] - q[1]*m0[0]);
+
+    m1[0] = m0[0] + q[3]*t[0] + q[1]*t[2] - q[2]*t[1];
+    m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0] - q[0]*t[2];
+    m1[2] = m0[2] + q[3]*t[2] + q[0]*t[1] - q[1]*t[0];
 }
 
 
-template <class T>
-void timekernel(std::complex<T> *b1, T *gr,
-                T *pr, T b0, T dt_gamma, T *m0,
-                T e1, T e2, long nNTime, T *output)
+void timekernel(std::complex<double> *b1, double *gr,
+                double *pr, double b0, double dt_gamma, double *m0,
+                double e1, double e2, long nNTime, double *output)
 {
-    T rotx, roty, rotz, rotmat[9], m1[3];
-    T e1_1 = e1 - 1;
+    double rotx, roty, rotz, m1[3];
+    double e1_1 = e1 - 1;
     std::copy(m0, m0+3, output);
     for (int ct=0; ct<nNTime; ct++)
     {
@@ -95,10 +118,12 @@ void timekernel(std::complex<T> *b1, T *gr,
         rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
         gr += 3; // move to the next position
 
-        calcrotmat(rotx, roty, rotz, rotmat);
-        m1[0] = std::inner_product(rotmat+0, rotmat+3, output, 0.0) * e2;
-        m1[1] = std::inner_product(rotmat+3, rotmat+6, output, 0.0) * e2;
-        m1[2] = std::inner_product(rotmat+6, rotmat+9, output, 0.0) * e1 - e1_1;
+        //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
+        apply_rot_quaternion(rotx, roty, rotz, output, m1);
+        m1[0] *= e2;
+        m1[1] *= e2;
+        m1[2]  = m1[2] * e1 - e1_1;
+
         std::copy(m1, m1+3, output); // set magnetization for the next iteration
     }
 }
