@@ -10,7 +10,9 @@ This work is inspired by Brian Hargreaves Bloch equation simulator [+](http://ww
  - install CUDA Toolkit : https://developer.nvidia.com/cuda-downloads
 
 Run some CUDA samples and ensure they work fine. I tried this which uses cuBLAS:
+
 https://github.com/NVIDIA/cuda-samples/tree/master/Samples/simpleCUBLAS
+
 Please note some CUDA versions are compatible with specific MS Visual Studio. I tried cuda_11.4 with Visual Studio 2019.
 
 **MATLAB Mex**
