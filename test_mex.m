@@ -65,11 +65,12 @@ b0 = zeros(npos, 1);
 
 % sinc pulse
 if is_sinc
-    t = linspace(-rf_len/2, rf_len/2, ntime)'; % must be column
-    x = pi*t*rf_tbw/rf_len + eps; % didn't use 2pi -> we are interested in full BW not only the positive
+    t = linspace(-rf_len/2, rf_len/2, ntime); % must be column
+    BW = rf_tbw/rf_len;
+    x = pi*t*BW + eps; % didn't use 2pi -> we are interested in full BW not only the positive
     snc = sin(x) ./ x; 
     hamming_window = 0.53836 + 0.46164*cos(2*pi * linspace(-0.5,0.5,ntime));
-    rf = snc .* hamming_window;
+    rf = transpose(snc .* hamming_window);
     rf = repmat(rf / sum(rf), [1 ncoil]); % normalize
     b1 = complex(rf * FA/gamma/td/ncoil);
 else
@@ -81,7 +82,7 @@ sens = complex(ones(ncoil, npos));
 gr = zeros(3, ntime);
 if is_selective
     BW = rf_tbw/rf_len; % [Hz]
-    gr(3, :) = 10*BW / voxel_sz(3) / gamma_hz;
+    gr(3, :) = BW / voxel_sz(3) / gamma_hz;
 end
 
 
@@ -94,14 +95,17 @@ result_z = reshape(result(3,:), sz);
 
 vin(abs(result_xy))
 %%
-x= rand(ntime, 8) + 1j*rand(ntime, 8);
-y= rand(npos, 8) + 1j*rand(npos, 8);
 tic
-z = x * y';
+z = b1 * sens;
 toc
-% tic
-% c = mtimesx(x, y');
-% toc
+
+tic 
+ge_b1 = gpuArray(b1);
+ge_gr = gpuArray(sens);
+z  = ge_b1 * ge_gr;
+z2 = gather(z);
+toc
+
 %% compare runtime
 
 e_sens = rand(npos,1) + 1j*rand(npos,1);
