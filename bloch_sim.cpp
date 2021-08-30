@@ -2,8 +2,6 @@
  *
  * Author : Ali Aghaeifar <ali.aghaeifar.mri [at] gmail [dot] com>
  *
- * Inspired by Brian Hargreaves's mex bloch simulator
- *
  */
 
 #include <stdio.h>
@@ -16,12 +14,8 @@
 #include <vector>
 #include <windows.h>
 #include <ppl.h>
-//#include <mkl.h>
 #include "bloch_sim.h"
-
-#ifdef USE_GPU
 #include "./gpu_matrix_mul/gpu_matrix_mul.h"
-#endif
 
 
 #define GAMMA_T 267522187.44
@@ -163,15 +157,10 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
     }
 
     auto start = std::chrono::system_clock::now();
-#ifndef USE_GPU
-    Eigen::MatrixXcd e_b1comb = b1_uc * e_sens; // m_lNTime * m_lNPos
-#endif
 
-#ifdef USE_GPU
     // we can gain a lot in speed if we use float precision
     gpu_matrix_mul myGPU;
     myGPU.mul(b1, sens, m_cdb1, m_lNTime, m_lNCoils, m_lNPos);
-#endif
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     std::cout<< "preparation " << elapsed.count() << " millisecond" << std::endl;
