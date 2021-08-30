@@ -97,6 +97,23 @@ void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m
     m1[2] = m0[2] + q[3]*t[2] + q[0]*t[1] - q[1]*t[0];
 }
 
+// Only gradients and off-resonance, no RF
+void apply_rot_quaternion(double nz, double *m0, double *m1)
+{
+    // creating quaternion rotation vector
+    double q[4], t[2];
+    double phi = nz;
+    double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+    q[2] = nz * sp;
+    q[3] = cos(phi/2);
+    // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
+    t[0] =-2*q[2]*m0[1];
+    t[1] = 2*q[2]*m0[0];
+
+    m1[0] = m0[0] + q[3]*t[0] - q[2]*t[1];
+    m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0];
+    m1[2] = m0[2];
+}
 
 void timekernel(std::complex<double> *b1, double *gr,
                 double *pr, double b0, double dt_gamma, double *m0,
@@ -108,12 +125,12 @@ void timekernel(std::complex<double> *b1, double *gr,
     for (int ct=0; ct<nNTime; ct++)
     {
         rotx = b1[ct].real() * dt_gamma * -1.0;
-        roty = b1[ct].imag() * dt_gamma; // Hao Sun has changed this sign to '-', but I beleive the original '+' is correct.
+        roty = b1[ct].imag() * dt_gamma * -1.0;
         rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
         gr += 3; // move to the next position
 
         //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-        apply_rot_quaternion(rotx, roty, rotz, output, m1);
+        apply_rot_quaternion(-rotx, -roty, rotz, output, m1);
         m1[0] *= e2;
         m1[1] *= e2;
         m1[2]  = m1[2] * e1 - e1_1;

@@ -42,7 +42,7 @@ mexcuda -DUSE_GPU -L'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\li
 % Constants 
 gamma   = 267522187.44;
 gamma_hz= gamma/2/pi;
-FA      = 90 * pi/180;
+FA      = 45 * pi/180;
 ntime   = 400; % number of samples
 rf_len  = 4e-3; % second
 td      = rf_len/ntime; %  dwell time 
@@ -89,11 +89,16 @@ end
 m0 = [zeros(2, npos); ones(1, npos)];
 
 % run
+b1 = real(b1) + 1i*real(b1);
+b1 = b1 / sqrt(2);
 result = bloch_sim_mex(b1, gr, td, b0, pr, 10000, 10000, sens, m0);
 result_xy = reshape(result(1,:), sz) + 1j*reshape(result(2,:), sz);
 result_z = reshape(result(3,:), sz);
 
 %vin(abs(result_xy))
+close all
+vin(reshape(result(1,:), sz))
+vin(reshape(result(2,:), sz))
 %%
 tic
 z = b1 * sens;
