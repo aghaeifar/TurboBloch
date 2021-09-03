@@ -26,3 +26,5 @@ Program uses windows ppl library for multi-threading. This employs `parallel_for
 
 Let me know if you find out other approaches to accelerate the program.
 
+**Contributing**
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
