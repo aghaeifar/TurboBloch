@@ -130,7 +130,11 @@ void timekernel(std::complex<double> *b1, double *gr,
         gr += 3; // move to the next position
 
         //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-        apply_rot_quaternion(-rotx, -roty, rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+        if(rotx == 0.0 && roty == 0.0) // no RF
+            apply_rot_quaternion(rotz, output, m1);
+        else
+            apply_rot_quaternion(-rotx, -roty, rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+
         m1[0] *= e2;
         m1[1] *= e2;
         m1[2]  = m1[2] * e1 - e1_1;

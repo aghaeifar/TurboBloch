@@ -29,7 +29,7 @@ public:
              double T1=99, double T2=99,      // [second]
              double *m0=NULL);                // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 
-    bool getMagnetization(double result[]); // m_lNPos x 3
+    bool getMagnetization(double result[]);   // m_lNPos x 3 : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 
 protected:
     void print(std::complex<double> *b1,   // m_lNTime x m_lNCoils : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
