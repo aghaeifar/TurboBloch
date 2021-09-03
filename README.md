@@ -5,7 +5,7 @@
 Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx). 
 This work is inspired by Brian Hargreaves Bloch equation simulator [+](http://www-mrsrl.stanford.edu/~brian/blochsim/)
 
-**Enabling GPU:**
+## Enabling GPU
  - install the most recent driver for your NVIDIA adapter 
  - install CUDA Toolkit : https://developer.nvidia.com/cuda-downloads
 
@@ -15,7 +15,7 @@ https://github.com/NVIDIA/cuda-samples/tree/master/Samples/simpleCUBLAS
 
 Please note some CUDA versions are compatible with specific MS Visual Studio. I tried cuda_11.4 with Visual Studio 2019.
 
-**MATLAB Mex**
+## MATLAB Mex
 
 MATLAB mex wrapper is provided and should work with MATLAB R2018a and newer releases. Use command below to compile mex file:
 
@@ -26,6 +26,6 @@ Program uses windows ppl library for multi-threading. This employs `parallel_for
 
 Let me know if you find out other approaches to accelerate the program.
 
-**Contributing**
+## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
