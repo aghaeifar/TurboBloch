@@ -237,11 +237,11 @@ bool bloch_sim::run(std::complex<double> *b1combined, double *gr, double td, dou
 
     // =================== Do The Simulation! ===================
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
-    //concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
-    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
+    concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
+    //for (int cpos=0; cpos<(int)m_lNPos; cpos++){
         timekernel(b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
     }
-   // );
+    );
     /* // was very slow, don't know why
         std::thread *threadarr = new std::thread[m_lNPos];
         for (int cpos=0; cpos<m_lNPos; cpos++)
