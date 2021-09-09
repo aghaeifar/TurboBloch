@@ -1,3 +1,4 @@
+%% Selective and non-selective excitation
 % Constants 
 gamma   = 267522187.44;
 gamma_hz= gamma/2/pi;
@@ -22,6 +23,7 @@ npos    = size(pr, 2); % number of spatial positions
 b0 = zeros(npos, 1);
 
 % sinc pulse
+b1 = complex(ones(ntime, ncoil) * FA/gamma/rf_len/ncoil); % this is for non-selective
 if is_sinc
     t = linspace(-rf_len/2, rf_len/2, ntime); % must be column
     BW = rf_tbw/rf_len;
@@ -31,9 +33,8 @@ if is_sinc
     rf = transpose(snc .* hamming_window);
     rf = repmat(rf / sum(rf), [1 ncoil]); % normalize
     b1 = complex(rf * FA/gamma/td/ncoil);
-else
-    b1 = complex(ones(ntime, ncoil) * FA/gamma/rf_len/ncoil) ;
 end
+
 sens = complex(ones(ncoil, npos));
 
 % gradients
@@ -49,5 +50,23 @@ m0 = [zeros(2, npos); ones(1, npos)];
 b1 = real(b1) + 1i*real(b1);
 b1 = b1 / sqrt(2);
 result    = bloch_sim_mex(b1, gr, td, b0, pr, 10000, 10000, sens, m0);
-result_xy = reshape(result(1,:), sz) + 1j*reshape(result(2,:), sz);
-result_z  = reshape(result(3,:), sz);
+
+close all
+vin(reshape(result(1,:), sz))
+vin(reshape(result(2,:), sz))
+vin(reshape(result(3,:), sz))
+%% off-resonance test, first run the example above 
+m0 = result;
+rot= 90 * pi/180 / rf_len / gamma;
+b0 = ones(npos, 1) * rot; % Tesla
+b1 = complex(zeros(1,size(b1,2))); % no rf
+gr = [0;0;0]; % no gradient
+
+result2    = bloch_sim_mex(b1, gr, rf_len, b0, pr, 10000, 10000, sens, m0);
+
+close all
+vin(reshape(result2(1,:), sz))
+vin(reshape(result2(2,:), sz))
+vin(reshape(result2(3,:), sz))
+
+
