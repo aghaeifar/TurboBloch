@@ -261,7 +261,7 @@ bool bloch_sim::getMagnetization(double result[])
     return true;
 }
 
-void bloch_sim::print(std::complex<double> *b1, double *gr, double tp, double *b0, double *pr, double T1, double T2, std::complex<double> *sens, double *m0)
+void bloch_sim::print(std::complex<double> *b1, double *gr, double *b0, double *pr, std::complex<double> *sens, double *m0)
 {
     std::cout<<"\nb1"<<std::endl;
     for(int i=0; i<m_lNTime; i++)
@@ -277,7 +277,7 @@ void bloch_sim::print(std::complex<double> *b1, double *gr, double tp, double *b
 
     std::cout<<"\nb0"<<std::endl;
     for(int i=0; i<m_lNPos; i++)
-        std::cout<<*(gr+i)<<std::endl;
+        std::cout<<*(b0+i)<<std::endl;
 
     std::cout<<"\npr"<<std::endl;
     for(int i=0; i<m_lNPos; i++)
