@@ -113,8 +113,8 @@ void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m
     if(nx == 0 && ny == 0)
     {  // Only gradients and off-resonance, no RF
         noRF = true;
-        phi  = nz;
-        q[2] = 1;
+        phi  = abs(nz);
+        q[2] = nz * sin(phi/2) / phi;
         q[3] = cos(phi/2);
     }
     else
@@ -149,7 +149,7 @@ void timekernel(std::complex<double> *b1, double *gr,
             gr += 3; // move to the next position
 
             //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-            apply_rot_quaternion(-rotx, -roty, rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+            apply_rot_quaternion(-rotx, -roty, -rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
 
             m1[0] *= e2;
             m1[1] *= e2;
@@ -173,7 +173,7 @@ void timekernel(std::complex<double> *b1, double *gr,
             double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
             q1.x() = -rotx * sp;
             q1.y() = -roty * sp;
-            q1.z() = rotz * sp;
+            q1.z() = -rotz * sp;
             q1.w() = cos(phi/2);
             q0     = q1 * q0;
         }
@@ -237,11 +237,11 @@ bool bloch_sim::run(std::complex<double> *b1combined, double *gr, double td, dou
 
     // =================== Do The Simulation! ===================
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
-    concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
-    //for (int cpos=0; cpos<(int)m_lNPos; cpos++){
+    //concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
+    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
         timekernel(b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
     }
-    );
+   // );
     /* // was very slow, don't know why
         std::thread *threadarr = new std::thread[m_lNPos];
         for (int cpos=0; cpos<m_lNPos; cpos++)
