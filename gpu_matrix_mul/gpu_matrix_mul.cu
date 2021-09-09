@@ -14,7 +14,7 @@
 
 
 // TODO: This is an example of a library function
-int gpu_matrix_mul::mul(std::complex<double> *mat_in1, std::complex<double> *mat_in2, std::complex<double> *mat_out, size_t row, size_t col_row, size_t col)
+int gpu_matrix_mul::mul_matmat(std::complex<double> *mat_in1, std::complex<double> *mat_in2, std::complex<double> *mat_out, size_t row, size_t col_row, size_t col)
 {
 	//Allocate space for device copies in device memory
 	cuDoubleComplex* cdc_mat_in1;
@@ -61,7 +61,7 @@ int gpu_matrix_mul::mul(std::complex<double> *mat_in1, std::complex<double> *mat
     return EXIT_SUCCESS;
 }
 
-int gpu_matrix_mul::mul(std::complex<float> *mat_in1, std::complex<float> *mat_in2, std::complex<float> *mat_out, size_t row, size_t col_row, size_t col)
+int gpu_matrix_mul::mul_matmat(std::complex<float> *mat_in1, std::complex<float> *mat_in2, std::complex<float> *mat_out, size_t row, size_t col_row, size_t col)
 {
     cuFloatComplex* cdc_mat_in1;
     cuFloatComplex* cdc_mat_in2;
