@@ -17,6 +17,7 @@
 #include "bloch_sim.h"
 #include "./gpu_matrix_mul/gpu_matrix_mul.h"
 
+#include "../eigen-3.4.0/Eigen/Dense"
 
 #define GAMMA_T 267522187.44
 #define TWOPI	6.283185307179586
@@ -77,43 +78,58 @@ void apply_rot_CayleyKlein(double nx, double ny, double nz, double *m0, double *
     m1[2] = std::inner_product(rmat+6, rmat+9, m0, 0.0);
 }
 
+// q = {x, y, z, w}
+void quat_rot(double q[4], double *m0, double *m1, bool noRF = false)
+{
+    double t[3];
+    // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
+    if(noRF)
+    {
+        t[0] =-2*q[2]*m0[1];
+        t[1] = 2*q[2]*m0[0];
+
+        m1[0] = m0[0] + q[3]*t[0] - q[2]*t[1];
+        m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0];
+        m1[2] = m0[2];
+    }
+    else
+    {
+        t[0] = 2*(q[1]*m0[2] - q[2]*m0[1]);
+        t[1] = 2*(q[2]*m0[0] - q[0]*m0[2]);
+        t[2] = 2*(q[0]*m0[1] - q[1]*m0[0]);
+
+        m1[0] = m0[0] + q[3]*t[0] + q[1]*t[2] - q[2]*t[1];
+        m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0] - q[0]*t[2];
+        m1[2] = m0[2] + q[3]*t[2] + q[0]*t[1] - q[1]*t[0];
+    }
+}
+
 void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m1)
 {
     // creating quaternion rotation vector
-    double q[4], t[3];
-    double phi = sqrt(nx*nx + ny*ny + nz*nz);
-    double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
-    q[0] = nx * sp;
-    q[1] = ny * sp;
-    q[2] = nz * sp;
-    q[3] = cos(phi/2);
-    // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
-    t[0] = 2*(q[1]*m0[2] - q[2]*m0[1]);
-    t[1] = 2*(q[2]*m0[0] - q[0]*m0[2]);
-    t[2] = 2*(q[0]*m0[1] - q[1]*m0[0]);
+    double q[4] = {0, 0, 0, 1}, phi;
+    bool noRF = false;
 
-    m1[0] = m0[0] + q[3]*t[0] + q[1]*t[2] - q[2]*t[1];
-    m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0] - q[0]*t[2];
-    m1[2] = m0[2] + q[3]*t[2] + q[0]*t[1] - q[1]*t[0];
+    if(nx == 0 && ny == 0)
+    {  // Only gradients and off-resonance, no RF
+        noRF = true;
+        phi  = nz;
+        q[2] = 1;
+        q[3] = cos(phi/2);
+    }
+    else
+    {
+        phi = sqrt(nx*nx + ny*ny + nz*nz);
+        double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+        q[0] = nx * sp;
+        q[1] = ny * sp;
+        q[2] = nz * sp;
+        q[3] = cos(phi/2);
+    }
+    quat_rot(q, m0, m1, noRF);
 }
 
-// Only gradients and off-resonance, no RF
-void apply_rot_quaternion(double nz, double *m0, double *m1)
-{
-    // creating quaternion rotation vector
-    double q[4], t[2];
-    double phi = nz;
-    double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
-    q[2] = nz * sp;
-    q[3] = cos(phi/2);
-    // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
-    t[0] =-2*q[2]*m0[1];
-    t[1] = 2*q[2]*m0[0];
-
-    m1[0] = m0[0] + q[3]*t[0] - q[2]*t[1];
-    m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0];
-    m1[2] = m0[2];
-}
+// ----------------------------------------------- //
 
 void timekernel(std::complex<double> *b1, double *gr,
                 double *pr, double b0, double dt_gamma, double *m0,
@@ -122,27 +138,51 @@ void timekernel(std::complex<double> *b1, double *gr,
     double rotx, roty, rotz, m1[3];
     double e1_1 = e1 - 1;
     std::copy(m0, m0+3, output);
-    for (int ct=0; ct<nNTime; ct++)
-    {
-        rotx = b1[ct].real() * dt_gamma * -1.0;
-        roty = b1[ct].imag() * dt_gamma * -1.0;
-        rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
-        gr += 3; // move to the next position
 
-        //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-        if(rotx == 0.0 && roty == 0.0) // no RF
-            apply_rot_quaternion(rotz, output, m1);
-        else
+    if(e1 != 0 || e2 != 0) // including relaxations
+    {
+        for (int ct=0; ct<nNTime; ct++)
+        {
+            rotx = b1[ct].real() * dt_gamma * -1.0;
+            roty = b1[ct].imag() * dt_gamma * -1.0;
+            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+            gr += 3; // move to the next position
+
+            //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
             apply_rot_quaternion(-rotx, -roty, rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
 
-        m1[0] *= e2;
-        m1[1] *= e2;
-        m1[2]  = m1[2] * e1 - e1_1;
+            m1[0] *= e2;
+            m1[1] *= e2;
+            m1[2]  = m1[2] * e1 - e1_1;
 
-        std::copy(m1, m1+3, output); // set magnetization for the next iteration
+            std::copy(m1, m1+3, output); // set magnetization for the next iteration
+        }
+    }
+    else // excluding relaxations, slightly faster
+    {
+        Eigen::Quaterniond q0(1,0,0,0);
+        Eigen::Quaterniond q1(1,0,0,0);
+        for (int ct=0; ct<nNTime; ct++)
+        {
+            rotx = b1[ct].real() * dt_gamma * -1.0;
+            roty = b1[ct].imag() * dt_gamma * -1.0;
+            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+            gr += 3; // move to the next position
+
+            double phi = sqrt(rotx*rotx + roty*roty + rotz*rotz);
+            double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+            q1.x() = -rotx * sp;
+            q1.y() = -roty * sp;
+            q1.z() = rotz * sp;
+            q1.w() = cos(phi/2);
+            q0     = q1 * q0;
+        }
+        double q[4] = {q0.x(), q0.y(), q0.z(), q0.w()};
+        quat_rot(q, m0, output, false);
     }
 }
 
+// ----------------------------------------------- //
 
 bloch_sim::bloch_sim(long nPositions, long nTime, long nCoils)
 {
@@ -165,27 +205,20 @@ bloch_sim::~bloch_sim()
 bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] : {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
                     double *gr,                 // m_lNTime x 3 [Tesla/m] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
                     double td,                  // m_lNTime x 1 [second]
-                    double *b0,                 // m_lNPos x 1  [Radian]
-                    double *pr,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-                    double T1, double T2,       // [second]
+                    double *b0,                 // m_lNPos x 1  [Tesla]
+                    double *pr,                 // m_lNPos x 3  [meter] : {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}                    
                     std::complex<double> *sens, // m_lNCoils x m_lNPos [Tesla/Volt]: {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+                    double T1, double T2,       // [second]
                     double *m0)                 // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 {
-    if (b1==NULL || sens==NULL)
+    if (b1==NULL || sens==NULL) // Other pointers will be chacked later
     {
-        std::cout << "Program found at least one input is NULL"<<std::endl;
+        std::cout << "At least one input is NULL. Terminate simulation..."<<std::endl;
         return false;
     }
-
-    auto start = std::chrono::system_clock::now();
-
-    // we can gain a lot in speed if we use float precision
+    // Please note we can gain a lot in speed if we use float precision
     gpu_matrix_mul myGPU;
-    myGPU.mul(b1, sens, m_cdb1, m_lNTime, m_lNCoils, m_lNPos);
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "preparation " << elapsed.count() << " millisecond" << std::endl;
-
+    myGPU.mul_matmat(b1, sens, m_cdb1, m_lNTime, m_lNCoils, m_lNPos);
     return run(m_cdb1, gr, td, b0, pr, T1, T2, m0);
 }
 
@@ -196,22 +229,19 @@ bool bloch_sim::run(std::complex<double> *b1combined, double *gr, double td, dou
         std::cout << "Program found at least one input is NULL"<<std::endl;
         return false;
     }
-    auto start = std::chrono::system_clock::now();
+
     // Calculate the E1 and E2 values at each time step.
-    double e1 = exp(-td/T1);
-    double e2 = exp(-td/T2);
+    double e1 = T1 == 0 ? 0 : exp(-td/T1);
+    double e2 = T2 == 0 ? 0 : exp(-td/T2);
     double tp_gamma = td * GAMMA_T;
+
     // =================== Do The Simulation! ===================
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
     concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
-//    for (int cpos=0; cpos<(int)m_lNPos; cpos++){
+    //for (int cpos=0; cpos<(int)m_lNPos; cpos++){
         timekernel(b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
     }
     );
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Simulation " << elapsed.count() << " millisecond" << std::endl;
-
     /* // was very slow, don't know why
         std::thread *threadarr = new std::thread[m_lNPos];
         for (int cpos=0; cpos<m_lNPos; cpos++)
