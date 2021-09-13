@@ -12,6 +12,7 @@
 
 #include <iostream>
 
+//  mexcuda -L'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\lib\x64' -lcublas -lcudart ...
 
 // TODO: This is an example of a library function
 int gpu_matrix_mul::mul_matmat(std::complex<double> *mat_in1, std::complex<double> *mat_in2, std::complex<double> *mat_out, size_t row, size_t col_row, size_t col)

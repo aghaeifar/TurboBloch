@@ -12,15 +12,13 @@
 #include <ctime>
 #include <thread>
 #include <vector>
-#include <windows.h>
-#include <ppl.h>
-#include "bloch_sim.h"
-#include "./gpu_matrix_mul/gpu_matrix_mul.h"
+#include <mkl.h>
+#include <tbb/parallel_for.h> // Intel Threading Building Blocks
 
 #include "../eigen-3.4.0/Eigen/Dense"
+#include "bloch_sim.h"
 
 #define GAMMA_T 267522187.44
-#define TWOPI	6.283185307179586
 
 // Find the rotation matrix that rotates |n| radians about the vector given by nx,ny,nz
 
@@ -148,8 +146,8 @@ void timekernel(std::complex<double> *b1, double *gr,
             rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
             gr += 3; // move to the next position
 
-            //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-            apply_rot_quaternion(-rotx, -roty, -rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+            apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
+            //apply_rot_quaternion(-rotx, -roty, -rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
 
             m1[0] *= e2;
             m1[1] *= e2;
@@ -186,17 +184,20 @@ void timekernel(std::complex<double> *b1, double *gr,
 
 bloch_sim::bloch_sim(long nPositions, long nTime, long nCoils)
 {
-    m_lNPos = nPositions;
-    m_lNTime = nTime;
+    m_lNPos   = nPositions;
+    m_lNTime  = nTime;
     m_lNCoils = nCoils;
-    m_dMagnetization = new double[m_lNPos*3]();
-    m_cdb1 = new std::complex<double>[nPositions*nTime](); // () init to zero
+    m_dMagnetization = new double[m_lNPos*3];
+    m_b1combined = NULL;
+    if(m_lNCoils > 1)
+        m_b1combined = new std::complex<double>[nPositions*nTime];
 }
 
 bloch_sim::~bloch_sim()
 {
     delete[] m_dMagnetization;
-    delete[] m_cdb1;
+    if(m_lNCoils > 1)
+        delete[] m_b1combined;
 }
 
 
@@ -211,45 +212,34 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
                     double T1, double T2,       // [second]
                     double *m0)                 // {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 {
-    if (b1==NULL || sens==NULL) // Other pointers will be chacked later
+    if (b1==NULL || gr==NULL || b0==NULL || pr==NULL || m0==NULL)
     {
         std::cout << "At least one input is NULL. Terminate simulation..."<<std::endl;
         return false;
     }
-    // Please note we can gain a lot in speed if we use float precision
-    gpu_matrix_mul myGPU;
-    myGPU.mul_matmat(b1, sens, m_cdb1, m_lNTime, m_lNCoils, m_lNPos);
-    return run(m_cdb1, gr, td, b0, pr, T1, T2, m0);
-}
 
-bool bloch_sim::run(std::complex<double> *b1combined, double *gr, double td, double *b0, double *pr, double T1, double T2, double *m0)
-{
-    if (b1combined==NULL || gr==NULL || b0==NULL || pr==NULL || m0==NULL)
+    if(sens != NULL && m_lNCoils>1)
     {
-        std::cout << "Program found at least one input is NULL"<<std::endl;
-        return false;
+        MKL_Complex16 alpha, beta;
+        alpha.real = 1.0; alpha.imag = 0.0;
+        beta.real = 0.0; beta.imag = 0.0;
+        cblas_zgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m_lNTime, m_lNPos, m_lNCoils, &alpha, b1, m_lNTime, sens, m_lNCoils, &beta, m_b1combined, m_lNTime);
     }
+    else
+       m_b1combined = b1;
 
     // Calculate the E1 and E2 values at each time step.
-    double e1 = T1 == 0 ? 0 : exp(-td/T1);
-    double e2 = T2 == 0 ? 0 : exp(-td/T2);
+    double e1 = T1 < 0 ? 0 : exp(-td/T1);
+    double e2 = T2 < 0 ? 0 : exp(-td/T2);
     double tp_gamma = td * GAMMA_T;
 
     // =================== Do The Simulation! ===================
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
-    concurrency::parallel_for (int(0), (int)m_lNPos, [&](int cpos){
-    //for (int cpos=0; cpos<(int)m_lNPos; cpos++){
-        timekernel(b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
-    }
-    );
-    /* // was very slow, don't know why
-        std::thread *threadarr = new std::thread[m_lNPos];
-        for (int cpos=0; cpos<m_lNPos; cpos++)
-            threadarr[cpos] = std::thread(timekernel, m_cb1+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_magnetization+cpos*3);
-        for(int cpos=0; cpos<m_lNPos; cpos++)
-            threadarr[cpos].join();
-        delete[] threadarr;
-    */
+    tbb::parallel_for(tbb::blocked_range<int>(0, m_lNPos), [&](tbb::blocked_range<int> r) {
+        for (int cpos=r.begin(); cpos<r.end(); cpos++)
+            timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+    });
+
     return true;
 }
 
