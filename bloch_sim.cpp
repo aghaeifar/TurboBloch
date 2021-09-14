@@ -13,7 +13,7 @@
 #include <thread>
 #include <vector>
 #include <mkl.h>
-#include <tbb/parallel_for.h> // Intel Threading Building Blocks
+#include "tbb/parallel_for.h" // Intel Threading Building Blocks
 
 #include "../eigen-3.4.0/Eigen/Dense"
 #include "bloch_sim.h"
@@ -133,11 +133,11 @@ void timekernel(std::complex<double> *b1, double *gr,
                 double *pr, double b0, double dt_gamma, double *m0,
                 double e1, double e2, long nNTime, double *output)
 {
-    double rotx, roty, rotz, m1[3];
+    double rotx, roty, rotz, m1[3], phi, sp;
     double e1_1 = e1 - 1;
     std::copy(m0, m0+3, output);
 
-    if(e1 != 0 || e2 != 0) // including relaxations
+    if(e1 >= 0 && e2 >= 0) // including relaxations
     {
         for (int ct=0; ct<nNTime; ct++)
         {
@@ -146,8 +146,8 @@ void timekernel(std::complex<double> *b1, double *gr,
             rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
             gr += 3; // move to the next position
 
-            apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
-            //apply_rot_quaternion(-rotx, -roty, -rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+            //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
+            apply_rot_quaternion(-rotx, -roty, -rotz, output, m1); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
 
             m1[0] *= e2;
             m1[1] *= e2;
@@ -158,22 +158,24 @@ void timekernel(std::complex<double> *b1, double *gr,
     }
     else // excluding relaxations, slightly faster
     {
+        //cblas_zgemv
         Eigen::Quaterniond q0(1,0,0,0);
         Eigen::Quaterniond q1(1,0,0,0);
+
         for (int ct=0; ct<nNTime; ct++)
         {
             rotx = b1[ct].real() * dt_gamma * -1.0;
-            roty = b1[ct].imag() * dt_gamma * -1.0;
-            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+            roty = b1[ct].imag()  * dt_gamma * -1.0;
+            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma // ~40-50ms
             gr += 3; // move to the next position
 
-            double phi = sqrt(rotx*rotx + roty*roty + rotz*rotz);
-            double sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+            phi    = sqrt(rotx*rotx + roty*roty + rotz*rotz);
+            sp     = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
             q1.x() = -rotx * sp;
             q1.y() = -roty * sp;
             q1.z() = -rotz * sp;
             q1.w() = cos(phi/2);
-            q0     = q1 * q0;
+            q0     = q1 * q0; // ~20-30ms
         }
         double q[4] = {q0.x(), q0.y(), q0.z(), q0.w()};
         quat_rot(q, m0, output, false);
@@ -218,6 +220,11 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
         return false;
     }
 
+    // Calculate the E1 and E2 values at each time step.
+    double e1 = T1 < 0 ? -1.0 : exp(-td/T1);
+    double e2 = T2 < 0 ? -1.0 : exp(-td/T2);
+    double tp_gamma = td * GAMMA_T;
+
     if(sens != NULL && m_lNCoils>1)
     {
         MKL_Complex16 alpha, beta;
@@ -227,11 +234,6 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
     }
     else
        m_b1combined = b1;
-
-    // Calculate the E1 and E2 values at each time step.
-    double e1 = T1 < 0 ? 0 : exp(-td/T1);
-    double e2 = T2 < 0 ? 0 : exp(-td/T2);
-    double tp_gamma = td * GAMMA_T;
 
     // =================== Do The Simulation! ===================
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
