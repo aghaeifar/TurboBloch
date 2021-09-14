@@ -3,7 +3,8 @@
 
 # Bloch Equation Simulator (C++ implementation)
 Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx). 
-This work is inspired by Brian Hargreaves Bloch equation simulator [+](http://www-mrsrl.stanford.edu/~brian/blochsim/)
+This work is inspired by Brian Hargreaves Bloch equation simulator [+](http://www-mrsrl.stanford.edu/~brian/blochsim/).
+
 Program needs Intel MKL library and uses Intel Threading Building Blocks (tbb) for multi threding. 
 
 ## MATLAB Mex
