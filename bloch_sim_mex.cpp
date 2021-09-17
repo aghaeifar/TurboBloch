@@ -87,7 +87,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     pm0 = mxGetPr(prhs[8]);
 
 
-    plhs[0] = mxCreateDoubleMatrix(3,nPos, mxREAL);
+    plhs[0] = mxCreateDoubleMatrix(3, nPos, mxREAL);
     double *result = mxGetPr(plhs[0]);
 
     bloch_sim sim(nPos, nTime, nCoil);
@@ -97,7 +97,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     {
         //mexPrintf("Finished successfully\n");
         sim.getMagnetization(result);
-        //std::cout << "Results:\n"<< result << std::endl;
+    //    std::cout << "Results:\n"<< *result << " " << *(result+1) << " " <<*(result+2) << " " <<std::endl;
     }
     else
         mexErrMsgTxt("Failed.");

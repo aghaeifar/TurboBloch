@@ -15,7 +15,7 @@
 #include <mkl.h>
 #include "tbb/parallel_for.h" // Intel Threading Building Blocks
 
-#include "../eigen-3.4.0/Eigen/Dense"
+#include "../ipopt_lib/eigen-3.4.0/Eigen/Dense"
 #include "bloch_sim.h"
 
 #define GAMMA_T 267522187.44
@@ -112,7 +112,7 @@ void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m
     {  // Only gradients and off-resonance, no RF
         noRF = true;
         phi  = abs(nz);
-        q[2] = nz * sin(phi/2) / phi;
+        q[2] = sin(phi/2) * (nz>0 - (nz < 0));
         q[3] = cos(phi/2);
     }
     else
@@ -130,7 +130,7 @@ void apply_rot_quaternion(double nx, double ny, double nz, double *m0, double *m
 // ----------------------------------------------- //
 
 void timekernel(std::complex<double> *b1, double *gr,
-                double *pr, double b0, double dt_gamma, double *m0,
+                double *pr, double b0, double td_gamma, double *m0,
                 double e1, double e2, long nNTime, double *output)
 {
     double rotx, roty, rotz, m1[3], phi, sp;
@@ -141,9 +141,9 @@ void timekernel(std::complex<double> *b1, double *gr,
     {
         for (int ct=0; ct<nNTime; ct++)
         {
-            rotx = b1[ct].real() * dt_gamma * -1.0;
-            roty = b1[ct].imag() * dt_gamma * -1.0;
-            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+            rotx = -b1[ct].real() * td_gamma;
+            roty = -b1[ct].imag() * td_gamma;
+            rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
             gr += 3; // move to the next position
 
             //apply_rot_CayleyKlein(rotx, roty, rotz, output, m1);
@@ -164,9 +164,9 @@ void timekernel(std::complex<double> *b1, double *gr,
 
         for (int ct=0; ct<nNTime; ct++)
         {
-            rotx = b1[ct].real() * dt_gamma * -1.0;
-            roty = b1[ct].imag()  * dt_gamma * -1.0;
-            rotz = std::inner_product(gr, gr+3, pr, b0) * dt_gamma * -1.0; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma // ~40-50ms
+            rotx = -b1[ct].real() * td_gamma;
+            roty = -b1[ct].imag() * td_gamma;
+            rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma // ~40-50ms
             gr += 3; // move to the next position
 
             phi    = sqrt(rotx*rotx + roty*roty + rotz*rotz);
@@ -223,7 +223,7 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
     // Calculate the E1 and E2 values at each time step.
     double e1 = T1 < 0 ? -1.0 : exp(-td/T1);
     double e2 = T2 < 0 ? -1.0 : exp(-td/T2);
-    double tp_gamma = td * GAMMA_T;
+    double td_gamma = td * GAMMA_T;
 
     if(sens != NULL && m_lNCoils>1)
     {
@@ -239,7 +239,7 @@ bool bloch_sim::run(std::complex<double> *b1,   // m_lNTime x m_lNCoils [Volt] :
     // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}
     tbb::parallel_for(tbb::blocked_range<int>(0, m_lNPos), [&](tbb::blocked_range<int> r) {
         for (int cpos=r.begin(); cpos<r.end(); cpos++)
-            timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), tp_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+            timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
     });
 
     return true;
