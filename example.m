@@ -20,7 +20,7 @@ pr      = transpose([prx(:), pry(:), prz(:)]);
 npos    = size(pr, 2); % number of spatial positions
 
 % off-resonance
-b0 = zeros(npos, 1);
+b0 = zeros(size(prx));
 
 % sinc pulse
 b1 = complex(ones(ntime, ncoil) * FA/gamma/rf_len/ncoil); % this is for non-selective
@@ -49,12 +49,13 @@ m0 = [zeros(2, npos); ones(1, npos)];
 % run
 b1 = real(b1) + 1i*real(b1);
 b1 = b1 / sqrt(2);
-result    = bloch_sim_mex(b1, gr, td, b0, pr, 10000, 10000, sens, m0);
+result    = bloch_sim_mex(b1, gr, td, b0(:), pr, 10000, 10000, sens, m0);
 
 close all
 vin(reshape(result(1,:), sz))
 vin(reshape(result(2,:), sz))
 vin(reshape(result(3,:), sz))
+
 %% off-resonance test, first run the example above 
 m0 = result;
 rot= 90 * pi/180 / rf_len / gamma;
