@@ -133,7 +133,7 @@ void timekernel(std::complex<double> *b1, double *gr,
                 double *pr, double b0, double td_gamma, double *m0,
                 double e1, double e2, long nNTime, double *output)
 {
-    double rotx, roty, rotz, m1[3], phi, sp;
+    double rotx, roty, rotz, m1[3], phi, sp, cp;
     double e1_1 = e1 - 1;
     std::copy(m0, m0+3, output);
 
@@ -156,6 +156,7 @@ void timekernel(std::complex<double> *b1, double *gr,
             std::copy(m1, m1+3, output); // set magnetization for the next iteration
         }
     }
+
     else // excluding relaxations, slightly faster
     {
         //cblas_zgemv
@@ -169,17 +170,27 @@ void timekernel(std::complex<double> *b1, double *gr,
             rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma // ~40-50ms
             gr += 3; // move to the next position
 
-            phi    = sqrt(rotx*rotx + roty*roty + rotz*rotz);
-            sp     = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+            if (rotx == 0 && roty == 0 && rotz == 0)
+            {
+                sp = 0;
+                cp = 1;
+            }
+            else
+            {
+                phi= sqrt(rotx*rotx + roty*roty + rotz*rotz);
+                sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in defs.
+                cp = cos(phi/2);
+            }
             q1.x() = -rotx * sp;
             q1.y() = -roty * sp;
             q1.z() = -rotz * sp;
-            q1.w() = cos(phi/2);
+            q1.w() = cp;
             q0     = q1 * q0; // ~20-30ms
         }
         double q[4] = {q0.x(), q0.y(), q0.z(), q0.w()};
         quat_rot(q, m0, output, false);
     }
+
 }
 
 // ----------------------------------------------- //
