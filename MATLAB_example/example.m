@@ -10,8 +10,8 @@ ncoil   = 8;
 voxel_sz= [3, 3, 3] * 1e-3;
 fov     = [-60 45; -30 70; -90 90] * 1e-3;
 rf_tbw  = 12;
-is_sinc = false;
-is_selective = false;
+is_sinc = true;
+is_selective = true;
 
 % positions
 [prx, pry, prz] = ndgrid(fov(1,1):voxel_sz(1):fov(1,2), fov(2,1):voxel_sz(2):fov(2,2), fov(3,1):voxel_sz(3):fov(3,2));
@@ -25,7 +25,7 @@ b0 = zeros(size(prx));
 % sinc pulse
 b1 = complex(ones(ntime, ncoil) * FA/gamma/rf_len/ncoil); % this is for non-selective
 if is_sinc
-    t = linspace(-rf_len/2, rf_len/2, ntime); % must be column
+    t = single(linspace(-rf_len/2, rf_len/2, ntime)); % must be column
     BW = rf_tbw/rf_len;
     x  = pi*t*BW + eps; % didn't use 2pi -> we are interested in full BW not only the positive
     snc = sin(x) ./ x; 
@@ -35,7 +35,7 @@ if is_sinc
     b1 = complex(rf * FA/gamma/td/ncoil);
 end
 
-sens = complex(ones(ncoil, npos));
+sens = complex(single(ones(ncoil, npos)));
 
 % gradients
 gr = zeros(3, ntime);
@@ -44,26 +44,43 @@ if is_selective
     gr(3, :) = BW / voxel_sz(3) / gamma_hz;
 end
 
-m0 = [zeros(2, npos); ones(1, npos)];
+m0 = single([zeros(2, npos); ones(1, npos)]);
 
-% run
+% add phase to RF
 b1 = real(b1) + 1i*real(b1);
 b1 = b1 / sqrt(2);
-result    = bloch_sim_mex(b1, gr, td, b0(:), pr, 10000, 10000, sens, m0);
 
+% make single precision 
+pr = single(pr);
+b1 = single(b1);
+gr = single(gr);
+b0 = single(b0);
+m0 = single(m0);
+
+% run
+tic
+try
+clc
+result    = bloch_sim(b1, gr, single(td), b0(:), pr, single(1), single(1), sens, m0);
+catch me_err
+me_err
+end
+toc
 close all
-vin(reshape(result(1,:), sz))
-vin(reshape(result(2,:), sz))
-vin(reshape(result(3,:), sz))
+%   vin(reshape(result(1,:), sz))
+% vin(reshape(result(2,:), sz))
+% vin(reshape(result(3,:), sz))
+% for mex file is open error
+clear functions
 
-%% off-resonance test, first run the example above 
+%% off-resonance, first run the example above 
 m0 = result;
 rot= 90 * pi/180 / rf_len / gamma;
-b0 = ones(npos, 1) * rot; % Tesla
-b1 = complex(zeros(1,size(b1,2))); % no rf
-gr = [0;0;0]; % no gradient
+b0 = single(ones(npos, 1)) * rot; % Tesla
+b1 = complex(single(zeros(1,size(b1,2)))); % no rf
+gr = single([0;0;0]); % no gradient
 
-result2    = bloch_sim_mex(b1, gr, rf_len, b0, pr, 10000, 10000, sens, m0);
+result2    = bloch_sim(b1, gr, rf_len, b0, pr, single(10000), single(10000), sens, m0);
 
 close all
 vin(reshape(result2(1,:), sz))
