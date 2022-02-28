@@ -61,26 +61,27 @@ m0 = single(m0);
 tic
 try
 clc
-result    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1), single(1), sens, m0);
+result    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1000), single(1000), sens, m0);
 catch me_err
 me_err
 end
 toc
 close all
-%   vin(reshape(result(1,:), sz))
-% vin(reshape(result(2,:), sz))
-% vin(reshape(result(3,:), sz))
+vin(reshape(result(1,:), sz))
+vin(reshape(result(2,:), sz))
+vin(reshape(result(3,:), sz))
 % for mex file is open error
 clear functions
 
 %% off-resonance, first run the example above 
 m0 = result;
-rot= 90 * pi/180 / rf_len / gamma;
+rot= 90 * pi/180 / td / gamma;
 b0 = single(ones(npos, 1)) * rot; % Tesla
 b1 = complex(single(zeros(1,size(b1,2)))); % no rf
 gr = single([0;0;0]); % no gradient
 
-result2    = bloch_sim(b1, gr, rf_len, b0, pr, single(10000), single(10000), sens, m0);
+result2    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1000), single(1000), sens, m0);
+clear functions
 
 close all
 vin(reshape(result2(1,:), sz))
