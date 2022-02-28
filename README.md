@@ -16,7 +16,7 @@ Program either can be compiled as shared library or be included and directly use
 
 ## Compiling
 ### Installing MKL
-Intel Math Kernel Library (MKL), is a library of math routines optimized for science and engineering. Bloch simulator uses MKL for a matrix multiplication. You can download Intel oneAPI (collection of useful tools including MKL) from intel [(here)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*"  to save space. The program only needs following libraries: *mkl_intel_lp64, mkl_intel_thread, mkl_core,* and *libiomp5md*.
+Intel Math Kernel Library (MKL), is a library of math routines optimized for science and engineering. Bloch simulator uses MKL for a matrix multiplication. You can download Intel oneAPI (collection of useful tools including MKL) from intel ([here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*"  to save space. The program only needs following libraries: *mkl_intel_lp64, mkl_intel_thread, mkl_core,* and *libiomp5md*.
 
 ### Create MATLAB mex
 An interface is programmed to compile the simulator as mex file and use it in MATLAB.
