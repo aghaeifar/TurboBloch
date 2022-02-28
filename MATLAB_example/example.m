@@ -3,12 +3,12 @@
 gamma   = 267522187.44;
 gamma_hz= gamma/2/pi;
 FA      = 45 * pi/180;
-ntime   = 400; % number of samples
-rf_len  = 4e-3; % second
+ntime   = 500; % number of samples
+rf_len  = 5e-3; % second
 td      = rf_len/ntime; %  dwell time 
 ncoil   = 8;
 voxel_sz= [3, 3, 3] * 1e-3;
-fov     = [-60 45; -30 70; -90 90] * 1e-3;
+fov     = [-100 100; -130 110; -120 120] * 1e-3;
 rf_tbw  = 12;
 is_sinc = true;
 is_selective = true;
@@ -57,11 +57,11 @@ gr = single(gr);
 b0 = single(b0);
 m0 = single(m0);
 
-% run
+%% run
 tic
 try
 clc
-result    = bloch_sim(b1, gr, single(td), b0(:), pr, single(1), single(1), sens, m0);
+result    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1), single(1), sens, m0);
 catch me_err
 me_err
 end

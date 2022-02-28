@@ -1,42 +1,11 @@
 
 #include <iostream>
 #include <chrono>
-#include "./CPU/bloch.h"
+#include "../bloch.h"
 
-#ifdef MATLAB_MEX_FILE
 #include "mex.h"
 #include "matrix.h"
-#endif
 
-int main()
-{
-    std::cout << "call sim(...) to execute a simulation" << std::endl;
-    return 0;
-}
-
-bool sim(std::complex<float> *pb1,   // m_lNTime x m_lNCoils [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
-         float *pgr,                 // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-         float td,                   // m_lNTime x 1 [second]
-         float *pb0,                 // m_lNPos x 1  [Tesla]
-         float *ppr,                 // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}                    
-         std::complex<float> *psens, // m_lNCoils x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
-         float T1, float T2,        // [second]
-         float *pm0,                 // 3 x m_lNPos : column-maj
-         long nPosition, 
-         long nTime, 
-         long nCoil,
-         float *presult)            // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}  
-{
-    bloch bloch_obj(nPosition, nTime, nCoil);
-    if(bloch_obj.run(pb1, pgr, td, pb0, ppr, psens, T1, T2, pm0) == false)
-        return false;
-
-    bloch_obj.getMagnetization(presult);
-    return true;
-}
-
-
-#ifdef MATLAB_MEX_FILE
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
@@ -127,13 +96,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     float *presult = mxGetSingles(plhs[0]);
 
     // auto start = std::chrono::system_clock::now();
-    if(sim(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, nPos, nTime, nCoil, presult) == false)
+    if(bloch_sim(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, nPos, nTime, nCoil, presult) == false)
         mexErrMsgTxt("Failed.");
 
     // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     // std::cout<< "Simulation Matlab " << elapsed.count() << " millisecond" << std::endl;
 
 }
-
-#endif // MATLAB_MEX_FILE
 

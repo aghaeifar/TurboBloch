@@ -3,24 +3,25 @@
  * Author : Ali Aghaeifar <ali.aghaeifar.mri [at] gmail [dot] com>
  *
  */
-
-#include <stdio.h>
-#include <math.h>
+#include <iostream>
 #include <numeric>
-#include <algorithm>
 #include <chrono>
-#include <ctime>
 #include <thread>
-#include <vector>
 #include <mkl.h>
-#include "tbb/parallel_for.h" // Intel Threading Building Blocks
 
-//#include "../ipopt_lib/eigen-3.4.0/Eigen/Dense"
+#ifdef _TBB
+#include "tbb/parallel_for.h" // Intel Threading Building Blocks
+#elif _WIN32
+#include <ppl.h>
+#include <windows.h> // without this ppl will be single thread
+#endif
+
 #include "bloch.h"
 
 #define GAMMA_T 267522187.44
 
 using namespace std;
+
 
 // Find the rotation matrix that rotates |n| radians about the vector given by nx,ny,nz
 void apply_rot_CayleyKlein(float ar, float ai, float br, float bi, float *m0, float *m1)
@@ -206,13 +207,13 @@ bloch::~bloch()
 
 // ----------------------------------------------- //
 
-bool bloch::run(std::complex<float> *b1,   // m_lNTime x m_lNCoil [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+bool bloch::run(std::complex<float> *b1,       // m_lNTime x m_lNCoil [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
                     float *gr,                 // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
                     float td,                  // m_lNTime x 1 [second]
                     float *b0,                 // m_lNPos x 1  [Tesla]
                     float *pr,                 // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}                    
                     std::complex<float> *sens, // m_lNCoil x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
-                    float T1, float T2,       // [second]
+                    float T1, float T2,        // [second]
                     float *m0)                 // 3 x m_lNPos : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
 {
     if (b1==NULL || gr==NULL || b0==NULL || pr==NULL || m0==NULL)
@@ -222,11 +223,10 @@ bool bloch::run(std::complex<float> *b1,   // m_lNTime x m_lNCoil [Volt] : colum
     }
     
     // Calculate the E1 and E2 values at each time step.
-    float e1 = T1 < 0 ? -1.0 : exp(-td/T1);
-    float e2 = T2 < 0 ? -1.0 : exp(-td/T2);
+    float e1 = T1 < 0. ? -1.0 : exp(-td/T1);
+    float e2 = T2 < 0. ? -1.0 : exp(-td/T2);
     float td_gamma = td * GAMMA_T;
     
-    //auto start = std::chrono::system_clock::now();  
     if(sens != NULL)
     {
         MKL_Complex8 alpha, beta; // float precision complex values. MKL_Complex16 for double precision.
@@ -241,26 +241,32 @@ bool bloch::run(std::complex<float> *b1,   // m_lNTime x m_lNCoil [Volt] : colum
             std::copy(b1, b1+m_lNTime, m_b1combined+cpos*m_lNTime);
     }
 
-    // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    // std::cout<< "Simulation1 -> " << elapsed.count() << " millisecond" << std::endl;   
-
     // int nTimes_nPos = m_lNPos * m_lNTime;
     // float *b1xy = (float *) m_b1combined;
     // cblas_scopy(nTimes_nPos, m_b1x, 1, b1temp, 2);
     // =================== Do The Simulation! ===================
-    //start = std::chrono::system_clock::now();  
+    auto start = std::chrono::system_clock::now();  
     try
     {
-        // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...}        
-        tbb::parallel_for(tbb::blocked_range<int>(0, m_lNPos), [&](tbb::blocked_range<int> r) {
-            for (int cpos=r.begin(); cpos<r.end(); cpos++)
-                timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
-        });
-        /*     
-        // non-parallel  
-        for (int cpos=0; cpos<m_lNPos; cpos++)        
+        // b1combined : {t0p0, t1p0, t2p0,... , t0p1, t1p1, t2p1, ...} 
+#ifdef _TBB
+    tbb::parallel_for(tbb::blocked_range<int>(0, m_lNPos), [&](tbb::blocked_range<int> r) {
+        for (int cpos=r.begin(); cpos<r.end(); cpos++)
             timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
-        */ 
+    });
+#elif _OPENMP     
+    #pragma omp parallel for
+    for(int cpos=0; cpos<m_lNPos; cpos++)        
+        timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+#elif _WIN32 
+    concurrency::parallel_for(int(0), (int)m_lNPos, [&](int cpos){
+        timekernel(m_b1combined +cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+    });
+#else
+    for (int cpos=0; cpos<m_lNPos; cpos++)  // sequential   
+            timekernel(m_b1combined+cpos*m_lNTime, gr, pr+cpos*3, *(b0+cpos), td_gamma, m0+cpos*3, e1, e2, m_lNTime, m_dMagnetization+cpos*3);
+#endif
+
     }
     catch( std::exception &ex )
     {
@@ -269,8 +275,8 @@ bool bloch::run(std::complex<float> *b1,   // m_lNTime x m_lNCoil [Volt] : colum
         return false;
     }
 
-    // elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    // std::cout<< "Simulation3 -> " << elapsed.count() << " millisecond" << std::endl;        
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Simulation -> " << elapsed.count() << " millisecond" << std::endl;        
     return true;
 }
 
@@ -283,37 +289,29 @@ bool bloch::getMagnetization(float result[])
     return true;
 }
 
-void bloch::print(std::complex<float> *b1, float *gr, float *b0, float *pr, std::complex<float> *sens, float *m0)
+
+
+extern "C" {
+        bool bloch_sim(
+        std::complex<float> *pb1,   // m_lNTime x m_lNCoils [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+        float *pgr,                 // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+        float td,                   // m_lNTime x 1 [second]
+        float *pb0,                 // m_lNPos x 1  [Tesla]
+        float *ppr,                 // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}                    
+        std::complex<float> *psens, // m_lNCoils x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+        float T1, float T2,         // [second]
+        float *pm0,                 // 3 x m_lNPos : column-maj
+        long nPosition, 
+        long nTime, 
+        long nCoil,
+        float *presult              // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}  
+        )            
 {
-    std::cout<<"\nb1"<<std::endl;
-    for(int i=0; i<m_lNTime; i++)
-    {
-        for(int j=0; j<m_lNCoil; j++)
-            std::cout<<(b1+i*m_lNCoil+j)->real() << "+i" << (b1+i*m_lNCoil+j)->imag() << "   ";
-         std::cout<<std::endl;
-    }
+    bloch bloch_obj(nPosition, nTime, nCoil);
+    if(bloch_obj.run(pb1, pgr, td, pb0, ppr, psens, T1, T2, pm0) == false)
+        return false;
 
-    std::cout<<"\ngr"<<std::endl;
-    for(int i=0; i<m_lNTime; i++)
-        std::cout<<*(gr+3*i)<< " "<<*(gr+3*i+1)<<" "<<*(gr+3*i+2)<<std::endl;
-
-    std::cout<<"\nb0"<<std::endl;
-    for(int i=0; i<m_lNPos; i++)
-        std::cout<<*(b0+i)<<std::endl;
-
-    std::cout<<"\npr"<<std::endl;
-    for(int i=0; i<m_lNPos; i++)
-        std::cout<<*(pr+3*i)<< " "<<*(pr+3*i+1)<<" "<<*(pr+3*i+2)<<std::endl;
-
-    std::cout<<"\nsens"<<std::endl;
-    for(int i=0; i<m_lNCoil; i++)
-    {
-        for(int j=0; j<m_lNPos; j++)
-            std::cout<<(sens+i*m_lNPos+j)->real() << "+i" << (sens+i*m_lNPos+j)->imag() << "   ";
-         std::cout<<std::endl;
-    }
-
-    std::cout<<"\nm0"<<std::endl;
-    for(int i=0; i<m_lNPos; i++)
-        std::cout<<*(m0+3*i)<< " "<<*(m0+3*i+1)<<" "<<*(m0+3*i+2)<<std::endl;
+    bloch_obj.getMagnetization(presult);
+    return true;
 }
+} // extern

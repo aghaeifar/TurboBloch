@@ -1,31 +1,49 @@
-
-
-
-
 # Bloch Equation Simulator (C++ implementation)
 Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx). 
+Program can use parallelism to speedup the simulation. The available methods are:
 
-## Installing MKL
-Intel Math Kernel Library (MKL), is a library of math routines optimized for science and engineering. Bloch simulator uses MKL for matrix multiplication and Intel Threading Building Blocks (tbb) for multi threading. You can download Intel oneAPI (collection of useful tools including MKL and tbb) from [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*" and "*Intel oneAPI Threading Building Blocks*" to save space.
+ - *parallel_for()* based on Parallel Patterns Library (PPL); this works if operating system is **Windows**.
+ - *oneAPI Threading Building Blocks (oneTBB)*; a multi-platform library to add parallelism to applications. The latest release can be downloaded from its GitHub repository ([here](https://github.com/oneapi-src/oneTBB)). To use this method, add predefined macro *_TBB* to compiler.
+ - *openMP*; it is another multi-platform method. A proper flag should be set for compiler. I found it is slower than other two methods in my implementation. 
+
+Sequential run will be used if none of above is available.
+Program either can be compiled as shared library or be included and directly used in other applications. 
 
 ## Compiling
-we need first to run *setvars* script to set environment variables for use with the oneAPI. I used following lines in command-line to compile under Linux (Ubuntu)
+### Installing MKL
+Intel Math Kernel Library (MKL), is a library of math routines optimized for science and engineering. Bloch simulator uses MKL for a matrix multiplication. You can download Intel oneAPI (collection of useful tools including MKL) from [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*"  to save space.
 
-    source /opt/intel/oneapi/setvars.sh 
-    g++ bloch_sim.cpp ./CPU/bloch.cpp -o libbloch_sim.so \
-        -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
-        ${MKLROOT}/lib/intel64/libmkl_tbb_thread.a \
-        ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group \
-        -L${TBBROOT}/lib/intel64/gcc4.8 -ltbb -lstdc++ -lpthread -lm -ldl \
-        -m64  -I"${MKLROOT}/include" 
+### Create MATLAB mex
+An interface is programmed to compile the simulator as mex file and use it in MATLAB.
+I tried these commands in MATLAB to compile the program. Example is provided in *MATLAB_example* folder.
 
-I tried these commands in Windows command-line to compile a mex file, to be used in MATLAB:
+**using parallel_for()**
 
-    "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-    mex -I"%MKLROOT%\include" mkl_intel_lp64.lib mkl_tbb_thread.lib mkl_core.lib tbb12.lib bloch_sim.cpp CPU/bloch.cpp -R2018a
-If you would like to compile the program directly in MATLAB command window, merge both commands and use *system()* function:
+    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
+        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
+        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
 
-    system('"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" & mex -I"%MKLROOT%\include" mkl_intel_lp64.lib mkl_tbb_thread.lib mkl_core.lib tbb12.lib bloch_sim.cpp CPU/bloch.cpp -R2018a');
+**using openMP**
+
+    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
+        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
+        COMPFLAGS="$COMPFLAGS /openmp" ...
+        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
+
+**using TBB library**
+
+    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
+        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
+        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
+        -I'./oneapi-tbb/include' ...
+        -L'./oneapi-tbb/lib/intel64/vc14' ...
+        -ltbb -D_TBB ...    
+        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
 
 
 ## MATLAB Example
