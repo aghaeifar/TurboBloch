@@ -16,7 +16,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     float* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
     std::stringstream buffer;
 
-    if (nrhs != 9)
+    if (nrhs < 9)
         mexErrMsgTxt("Wrong number of inputs.");
 
     // --------- map B1 ---------
@@ -69,7 +69,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         nCoil = 1;
         psens = NULL;
     }
-    else
+    else 
     {
         if(!mxIsComplex(prhs[7]))
             mexErrMsgTxt("Sensitivity map must be complex");
@@ -89,16 +89,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     }
     pm0 = mxGetSingles(prhs[8]);
 
-    mwSize info, dims[2];
-    dims[0] = 3;
-    dims[1] = nPos;
-    plhs[0] = mxCreateNumericArray (2, dims, mxSINGLE_CLASS, mxREAL);
-    float *presult = mxGetSingles(plhs[0]);
+    // --------- save all -----------
+    bool saveAll = false;
+    if(nrhs > 9)
+        if (mxIsLogicalScalar(prhs[9]) && mxGetM(prhs[9]) != 0)
+            saveAll = *mxGetLogicals(prhs[9]);
 
+    mwSize info, dims[3];
+    dims[0] = 3;
+    dims[1] = saveAll ? nTime+1 : 1;
+    dims[2] = nPos;
+    plhs[0] = mxCreateNumericArray(3, dims, mxSINGLE_CLASS, mxREAL);
+    float *presult = mxGetSingles(plhs[0]);
+    
     // auto start = std::chrono::system_clock::now();
-    if(bloch_sim(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, nPos, nTime, nCoil, presult) == false)
+    if(bloch_sim(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, nPos, nTime, nCoil, presult, saveAll) == false)
         mexErrMsgTxt("Failed.");
 
+    //mxSetDimensions(plhs[0], dims, 3);
     // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     // std::cout<< "Simulation Matlab " << elapsed.count() << " millisecond" << std::endl;
 

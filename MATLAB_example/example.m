@@ -61,17 +61,25 @@ m0 = single(m0);
 tic
 try
 clc
-result    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1000), single(1000), sens, m0);
+result    = bloch_mex(b1, gr, single(td), b0(:), pr, single(1000), single(1000), sens, m0, true);
 catch me_err
 me_err
 end
 toc
+%%
 close all
-vin(reshape(result(1,:), sz))
-vin(reshape(result(2,:), sz))
-vin(reshape(result(3,:), sz))
+vin(reshape(result(1,end,:), sz))
+vin(reshape(result(2,end,:), sz))
+vin(reshape(result(3,end,:), sz))
 % for mex file is open error
 clear functions
+
+%%
+close all
+vin(reshape(result(1,100,:), sz))
+vin(reshape(result(2,100,:), sz))
+vin(reshape(result(3,100,:), sz))
+
 
 %% off-resonance, first run the example above 
 m0 = result;
