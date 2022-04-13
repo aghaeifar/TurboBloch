@@ -9,13 +9,13 @@
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    float tp = 0;   // second  m_lNTime x 1
-    float T1, T2;   // second
+    double tp = 0;   // second  m_lNTime x 1
+    double T1, T2;   // second
     long nRow, nCol, nPos, nTime, nCoil;
-    std::complex<float> *pb1=NULL, *psens=NULL;
-    float* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
+    std::complex<double> *pb1=NULL, *psens=NULL;
+    double* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
     std::stringstream buffer;
-
+    
     if (nrhs < 9)
         mexErrMsgTxt("Wrong number of inputs.");
 
@@ -24,7 +24,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         mexErrMsgTxt("B1 must be complex");
     nTime = mxGetM(prhs[0]); // m_lNTime
     nCoil = mxGetN(prhs[0]); // m_lNCoils
-    pb1 = reinterpret_cast<std::complex<float>*>(mxGetComplexSingles (prhs[0]));
+    pb1 = reinterpret_cast<std::complex<double>*>(mxGetComplexDoubles (prhs[0]));
 
     // --------- map gr ---------
     if (mxGetM(prhs[1]) != 3 || mxGetN(prhs[1]) != nTime)
@@ -32,18 +32,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         buffer << "Expected input for gr is 3x" <<nTime<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    pgr = mxGetSingles(prhs[1]);
+    pgr = mxGetPr(prhs[1]);
 
     // --------- map tp ---------
     if (mxGetM(prhs[2]) * mxGetN(prhs[2]) != 1)
         mexErrMsgTxt("Expected input for tp is 1x1");
-    tp= *mxGetSingles(prhs[2]);
+    tp= *mxGetPr(prhs[2]);
 
     // --------- map b0 ---------
     if (mxGetM(prhs[3]) * mxGetN(prhs[3]) != mxGetN(prhs[3])+mxGetM(prhs[3])-1)
         mexErrMsgTxt("B0 must be vector.");
     nPos = mxGetM(prhs[3]) * mxGetN(prhs[3]);
-    pb0 = mxGetSingles(prhs[3]);
+    pb0 = mxGetPr(prhs[3]);
 
     // --------- map pr ---------
     if (mxGetM(prhs[4]) != 3 || mxGetN(prhs[4]) != nPos)
@@ -51,17 +51,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         buffer << "Expected input for pr is 3x" <<nPos<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    ppr = mxGetSingles(prhs[4]);
+    ppr = mxGetPr(prhs[4]);
 
     if (mxGetM(prhs[5]) == 0) // empty input == []
         T1 = -1.0;
     else
-        T1 = *mxGetSingles(prhs[5]);
+        T1 = *mxGetPr(prhs[5]);
 
     if (mxGetM(prhs[6]) == 0)
         T2 = -1.0;
     else
-        T2 = *mxGetSingles(prhs[6]);
+        T2 = *mxGetPr(prhs[6]);
 
     // --------- map sens ---------
     if (mxGetM(prhs[7]) == 0)
@@ -78,7 +78,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             buffer << "Expected input for sensitivity is "<<nCoil<<"x"<<nPos<<std::endl;
             mexErrMsgTxt(buffer.str().c_str());
         }
-        psens = reinterpret_cast<std::complex<float>*>(mxGetComplexSingles(prhs[7]));
+        psens = reinterpret_cast<std::complex<double>*>(mxGetComplexDoubles(prhs[7]));
     }
 
     // --------- m0 ---------
@@ -87,7 +87,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         buffer << "Expected input for m0 is 3x" <<nPos<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    pm0 = mxGetSingles(prhs[8]);
+    pm0 = mxGetPr(prhs[8]);
 
     // --------- save all -----------
     bool saveAll = false;
@@ -99,12 +99,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     dims[0] = 3;
     dims[1] = saveAll ? nTime+1 : 1;
     dims[2] = nPos;
-    plhs[0] = mxCreateNumericArray(3, dims, mxSINGLE_CLASS, mxREAL);
-    float *presult = mxGetSingles(plhs[0]);
+    plhs[0] = mxCreateNumericArray(3, dims, mxDOUBLE_CLASS, mxREAL);
+    double *presult = mxGetPr(plhs[0]);
     
     // auto start = std::chrono::system_clock::now();
+    
     if(bloch_sim(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, nPos, nTime, nCoil, presult, saveAll) == false)
-        mexErrMsgTxt("Failed.");
+        mexErrMsgTxt("Failed.");  
 
     //mxSetDimensions(plhs[0], dims, 3);
     // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);

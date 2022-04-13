@@ -10,21 +10,21 @@ td      = rf_len/ntime; %  dwell time
 ncoil   = 1;
 
 % positions
-pr      = single([0;0;0]);
+pr      = [0;0;0];
 npos    = size(pr, 2); % number of spatial positions
 
 % off-resonance
-b0 = single(zeros([npos, 1]));
+b0 = zeros([npos, 1]);
 
 % RF pulse
-B1 = complex(single(ones(ntime, ncoil)) * FA * pi/180 /gamma/rf_len/ncoil); % this is for non-selective
-sens = complex(single(ones(ncoil, npos)));
+B1 = complex(ones(ntime, ncoil) * FA * pi/180 /gamma/rf_len/ncoil); % this is for non-selective
+sens = complex(ones(ncoil, npos));
 
 % gradients
-gr = single(zeros(3, ntime));
+gr = zeros(3, ntime);
 
 % Initial magnetization
-m0 = single([zeros(2, npos); ones(1, npos)]);
+m0 = [zeros(2, npos); ones(1, npos)];
 
 %%
 nDummy = 200; % dummy pulses to reach steady-state
@@ -37,9 +37,9 @@ for tr = 1:numel(TR)
                 % perfect spoiler
                 result(1:2) = 0; 
                 % apply RF
-                result = bloch_mex(complex(B1(b1)), gr, single(td), b0, pr, single(t1), single(1000), sens, single(result));
+                result = bloch_mex(complex(B1(b1)), gr, td, b0, pr, t1, 1000, sens, result);
                 % TR fill
-                result = bloch_mex(complex(single(0)), gr, single(TR(tr)-td), b0, pr, single(t1), single(1000), sens, result);                
+                result = bloch_mex(complex(0), gr, TR(tr)-td, b0, pr, t1, 1000, sens, result);                
             end
             mxy(b1) = norm(result(1:2));
         end
