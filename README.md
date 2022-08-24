@@ -41,7 +41,7 @@ MKL can be obtained by installing Intel oneAPI Toolkits ( click [here](https://w
 
 The cmake as stated above should also work in Windows. It will create a Visual Studio sln file. Open and build solution.
 ## Precompiled binaries
-Shared library built for Linux and Windows can be downloaded in the repository releases.
+Shared library built for Linux and Windows can be downloaded in the repository releases in **release** mode.
 
 ## Macros:
 
