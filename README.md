@@ -1,62 +1,79 @@
-
-
-
-
 # Bloch Equation Simulator (C++ implementation)
-Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx). 
 
-Program can use parallelism to speedup the simulation. The available methods are:
+Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx).
 
- - *parallel_for()* based on Parallel Patterns Library (PPL); this works if operating system is **Windows**.
- - *oneAPI Threading Building Blocks (oneTBB)*; a multi-platform library to add parallelism to applications. The latest release can be downloaded from its GitHub repository ([here](https://github.com/oneapi-src/oneTBB)). To use this method, add predefined macro *_TBB* to compiler.
- - *openMP*; it is another multi-platform method. A proper flag should be set for compiler. I found it is slower than other two methods in the current implementation. 
+## Dependencies:
 
-Sequential run will be used if none of above is available.
-Program either can be compiled as shared library or be included and directly used in other applications. 
-
-## Compiling
-### Installing MKL
-Intel Math Kernel Library (MKL), is a library of math routines optimized for science and engineering. Bloch simulator uses MKL for a matrix multiplication. You can download Intel oneAPI (collection of useful tools including MKL) from intel ([here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*"  to save space. The program only needs following libraries: *mkl_intel_lp64, mkl_intel_thread, mkl_core,* and *libiomp5md*.
-
-### Create MATLAB mex
-An interface is programmed to compile the simulator as mex file and use it in MATLAB.
-I tried these commands in MATLAB to compile the program. Example is provided in *MATLAB_example* folder.
-
-**using parallel_for()**
-
-    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
-        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
-        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
-
-**using openMP**
-
-    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
-        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
-        COMPFLAGS="$COMPFLAGS /openmp" ...
-        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
-
-**using TBB library**
-
-    mex -I'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\include' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\mkl\latest\lib\intel64' ...
-        -L'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\compiler\lib\intel64_win' ...
-        -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -llibiomp5md ...
-        -I'./oneapi-tbb/include' ...
-        -L'./oneapi-tbb/lib/intel64/vc14' ...
-        -ltbb -D_TBB ...    
-        MATLAB_example/bloch_mex.cpp bloch.cpp -R2018a
+* Math Kernel Library (MKL)
+* Threading Building Blocks (TBB)
+* Git (http://git-scm.com/)
+* Cmake build tool (http://www.cmake.org/)
+* Parallelization is implemented based on STL algorithms. Using a compiler with c++17 support is required.
 
 
-## MATLAB Example
+## Linux installation:
 
-Please see the example code which executes a selective excitation using a sinc pulse. Pulse is designed for an RF coil with 8Tx (here all are homogeneous). Phase of pulse is designed to be 45 degree.
+Installing dependencies:
+
+```sh
+sudo apt-get install g++ cmake git
+sudo apt-get install libtbb-dev intel-mkl
+```
+
+Clone bloch simulator from repository:
+
+```sh
+git clone https://github.com/aghaeifar/bloch_simulator.git
+```
+
+Build and install Bloch simulator as a shared library:
+
+```sh
+$ cd bloch_simulator
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+$ sudo make install
+```
+
+## Windows installation:
+MKL can be obtained by installing Intel oneAPI Toolkits ( click [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) to download). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*" and "*Intel OneAPI Threading Building Blocks*" to save a lot of space. More information about configuring oneAPI can be found [here](https://www.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html). Briefly,iIt is needed to source *setvars.sh* which is located in *<install_dir>/setvars.sh*.
+
+The cmake as stated above should also work in Windows. It will create a Visual Studio sln file. Open and build solution.
+## Precompiled binaries
+Shared library built for Linux and Windows can be downloaded in the repository releases.
+
+## Macros:
+
+One can define following macros to disable/enable some features in the program:
+- ```__SEQUENTIAL__``` disables parallelization and the need for tbb library.
+- ```__MEASURE_ELAPSED_TIME__ ``` enables printing elapsed time for calculations.
+- ```__SINGLE_PRECISION__``` uses single precision floating-point format. Boost the speed at the cost of precision. All double inputs must be replaced with float.
+- ```__EXPORT_CLASS_BLOCH__```, creates exports when building a shared library in Windows.
+---
+
+## Short manual:
+
+### MATLAB Interface:
+
+A MATLAB mex wrapper is provided in MATLAB folder with a few examples. Cmake should be able prepare mex file build too.
 
 
-## Contributing
+## Troubleshooting 
+
+Getting this error when running mex file:
+```
+/sys/os/glnxa64/libstdc++.so.6: version CXXABI_1.3.8' not found
+```
+**Solution**: update softlink as:
+```sh
+sudo ln -vfns /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30 libstdc++.so.6
+```
+
+
+---
+
+## Contributing:
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
