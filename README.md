@@ -5,7 +5,6 @@ Efficient and fast implementation of Bloch equation simulator for magnetic reson
 ## Dependencies:
 
 * Math Kernel Library (MKL)
-* Threading Building Blocks (TBB)
 * Git (http://git-scm.com/)
 * Cmake build tool (http://www.cmake.org/)
 * Parallelization is implemented based on STL algorithms. Using a compiler with c++17 support is required.
