@@ -41,7 +41,7 @@ MKL can be obtained by installing Intel oneAPI Toolkits ( click [here](https://w
 
 The cmake as stated above should also work in Windows. It will create a Visual Studio sln file. Open and build solution.
 ## Precompiled binaries
-Shared library built for Linux and Windows can be downloaded in the repository releases in **release** mode. All the tests and built are done with Windows 10 & Visual Studio 2022, Ubuntu 22.04 & gcc 11.2.0, and MATLAB 2022a.
+Shared library built for Linux and Windows can be downloaded in the repository releases in **release** mode. All the tests and builds are done with Windows 10 & Visual Studio 2022, Ubuntu 22.04 & gcc 11.2.0, and MATLAB 2022a.
 
 ## Macros:
 
