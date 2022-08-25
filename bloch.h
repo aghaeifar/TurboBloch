@@ -22,14 +22,14 @@ typedef double _T;
 
 extern "C"
 {
-    bool bloch_sim(std::complex<_T> *pB1,   // m_lNTime x m_lNCoils [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
-                   _T *pGr,                 // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-                   _T td,                   // [second]
-                   _T *pB0,                 // m_lNPos x 1  [Tesla]
-                   _T *pPos,                // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-                   std::complex<_T> *pSens, // m_lNCoils x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
-                   _T T1, _T T2,            // [second]
-                   _T *pM0,                 // 3 x m_lNPos : column-maj
+    bool bloch_sim(std::complex<_T> *pB1,   // RF; m_lNTime x m_lNCoils [Volt] : column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+                   _T *pGr,                 // gradients; 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+                   _T td,                   // dwell-time; [second]
+                   _T *pB0,                 // off-resonance; m_lNPos x 1  [Tesla]
+                   _T *pPos,                // spatial positions; 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+                   std::complex<_T> *pSens, // TX coils sensitivity; m_lNCoils x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
+                   _T T1, _T T2,            // initial magnetization; relaxations; [second]
+                   _T *pM0,                 // output; 3 x m_lNPos : column-maj
                    long nPosition,
                    long nTime,
                    long nCoil,
@@ -43,15 +43,15 @@ public:
     bloch(long nPosition, long nTime, long nCoil, bool saveAll);
     ~bloch();
 
-    bool run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
-             _T *pGr,                 // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             _T td,                   // [second]
-             _T *pB0,                 // m_lNPos x 1  [Tesla]
-             _T *pPos,                // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             std::complex<_T> *pSens, // m_lNCoil x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c2p0,...,c0p1, c1p1, c2p1,...}
-             _T T1, _T T2,        // [second]
-             _T *pM0,                 // 3 x m_lNPos : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             _T *pResult);            // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
+    bool run(std::complex<_T> *pB1,   // RF; m_lNTime x m_lNCoil [Volt]: column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
+             _T *pGr,                 // gradients; 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             _T td,                   // dwell-time; [second]
+             _T *pB0,                 // off-resonance; m_lNPos x 1  [Tesla]
+             _T *pPos,                // spatial positions; 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             std::complex<_T> *pSens, // TX coils sensitivity; m_lNCoil x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c2p0,...,c0p1, c1p1, c2p1,...}
+             _T T1, _T T2,            // relaxations; [second]
+             _T *pM0,                 // initial magnetization; 3 x m_lNPos : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
+             _T *pResult);            // output; 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
 
 protected:
     void timekernel(std::complex<_T> *b1xy, 
