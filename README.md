@@ -39,9 +39,9 @@ $ sudo make install
 ## Windows installation:
 MKL can be obtained by installing Intel oneAPI Toolkits ( click [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) to download). I chose online installer and unchecked all the tools except "*Intel OneAPI Math Kernel Library*" and "*Intel OneAPI Threading Building Blocks*" to save a lot of space. More information about configuring oneAPI can be found [here](https://www.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html). Briefly, it is needed to set environmental variables by running *<oneAPI_install_dir>/setvars.bat*.
 
-The cmake as stated above should also work in Windows. It will create a Visual Studio sln file. Open and build solution.
+The cmake as stated above should also work in Windows. It will create a Visual Studio sln file. Open and build solution in **release** mode.
 ## Precompiled binaries
-Shared library built for Linux and Windows can be downloaded in the repository releases in **release** mode. All the tests and builds are done with Windows 10 & Visual Studio 2022, Ubuntu 22.04 & gcc 11.2.0, and MATLAB 2022a.
+Shared library built for Linux and Windows can be downloaded in the repository releases. All the tests and builds are done with Windows 10 & Visual Studio 2022, Ubuntu 22.04 & gcc 11.2.0, and MATLAB 2022a.
 
 ## Macros:
 
