@@ -16,7 +16,7 @@ Installing dependencies:
 
 ```sh
 sudo apt-get install g++ cmake git
-sudo apt-get install libtbb-dev intel-mkl
+sudo apt-get -y install libtbb-dev intel-mkl libomp5
 ```
 
 Clone bloch simulator from repository:
