@@ -56,7 +56,7 @@ One can define following macros to disable/enable some features in the program:
 
 ### MATLAB Interface:
 
-A MATLAB mex wrapper is provided in MATLAB folder with a few examples. Cmake should be able prepare mex file build too.
+A MATLAB mex wrapper is provided in MATLAB folder with a few examples. Cmake should be able prepare mex file build too. Run *build.m* in MATLAB folder for a static mex build.
 
 
 ## Troubleshooting 
