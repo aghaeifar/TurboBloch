@@ -76,12 +76,12 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
         phi  = abs(nz);
         q[0] = 0.;
         q[1] = 0.;
-        q[2] = sin(phi/2) * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
+        q[2] = sin(0.5 * phi) * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
     }
     else if(nz == 0)
     {  // Only RF, no gradients and off-resonance
         phi  = sqrt(nx*nx + ny*ny);
-        _T sp = sin(phi/2) / phi;
+        _T sp = sin(0.5 * phi) / phi;
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = 0.; 
@@ -89,12 +89,12 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     else
     {
         phi = sqrt(nx*nx + ny*ny + nz*nz);
-        _T sp = sin(phi/2) / phi; // /phi because [nx, ny, nz] is unit length in definition. This will be effective in the next lines, where nx, ny, nz * sp 
+        _T sp = sin(0.5 * phi) / phi; // /phi because [nx, ny, nz] is unit length in definition. This will be effective in the next lines, where nx, ny, nz * sp 
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = nz * sp;        
     }
-    q[3] = cos(phi/2);
+    q[3] = cos(0.5 * phi);
 }
 
 // ----------------------------------------------- //
@@ -122,7 +122,7 @@ void bloch::timekernel( std::complex<_T> *b1xy,
             rotx = -b1xy[ct].real() * td_gamma;
             roty = -b1xy[ct].imag() * td_gamma;            
             rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
-            gr += 3; // move to the next time point
+            gr  += 3; // move to the next time point
             
             create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
             apply_rot_quaternion(q, output, m1);
