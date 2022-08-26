@@ -9,7 +9,7 @@
 #include <execution>
 #include <numeric> // std::inner_product, std::iota 
 #include <algorithm>
-#include <mkl.h>
+#include "mkl.h"
 
 #ifdef __MEASURE_ELAPSED_TIME__
 #include <chrono>
@@ -29,7 +29,7 @@ typedef MKL_Complex16 _MKL_COMPLEX;
 
 #define GAMMA_T 267522187.44
 
-void (*p_cblas_Xcgemm)(const CBLAS_LAYOUT, const CBLAS_TRANSPOSE, const CBLAS_TRANSPOSE, const MKL_INT, const MKL_INT, const MKL_INT, const void *, const void *, const MKL_INT, const void *, const MKL_INT, const void *, void *, const MKL_INT);
+void (*p_cblas_Xgemm)(const CBLAS_LAYOUT, const CBLAS_TRANSPOSE, const CBLAS_TRANSPOSE, const MKL_INT, const MKL_INT, const MKL_INT, const void *, const void *, const MKL_INT, const void *, const MKL_INT, const void *, void *, const MKL_INT);
 
 // q = {x, y, z, w}
 void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
@@ -68,7 +68,8 @@ void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
 }
 
 void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
-{
+{ 
+    // see https://paroj.github.io/gltut/Positioning/Tut08%20Quaternions.html
     _T phi = 0.;
     // q = sin(θ/2)(xi+yj+zk) + cos(θ/2)
     if(nx == 0 && ny == 0)
@@ -94,7 +95,7 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
         q[1] = ny * sp;
         q[2] = nz * sp;        
     }
-    q[3] = cos(0.5 * phi);
+    q[3] = cos(0.5 * phi); // 1. - sin_phi2*sin_phi2 is faster, but results differ
 }
 
 // ----------------------------------------------- //
@@ -109,20 +110,18 @@ void bloch::timekernel( std::complex<_T> *b1xy,
                         _T *output)
 {
     _T m1[3], q[4];
+    _T rotx, roty, rotz;
     _T e1_1 = e1 - 1;  
     std::copy(m0, m0+3, output);  // setting starting magnetization
     
-    if(e1 >= 0 && e2 >= 0) // including relaxations
-    {
-        _T rotx, roty, rotz;
-        std::complex<_T> alpha0, beta0;
-        for (int ct=0; ct<m_lNTime; ct++)
+    if(e1 > 0 && e2 > 0) // including relaxations
+    {        
+        for (int ct=0; ct<m_lNTime; ct++, gr += 3)
         {            
             // rotations are right handed, thus all are negated.
             rotx = -b1xy[ct].real() * td_gamma;
             roty = -b1xy[ct].imag() * td_gamma;            
             rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
-            gr  += 3; // move to the next time point
             
             create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
             apply_rot_quaternion(q, output, m1);
@@ -133,10 +132,28 @@ void bloch::timekernel( std::complex<_T> *b1xy,
             output[2] = m1[2] * e1 - e1_1;            
         }
     }
-    else // excluding relaxations, faster calculation
-    {        
+    else // excluding relaxations, can we make combine all rotations into one and and improve run time? 
+    {   
+        /*
+        std::complex<_T> al0(1,0), bt0(0,0), al1, bt1, al2, bt2;
+        for (int ct=0; ct<m_lNTime; ct++, gr += 3)
+        {            
+            // rotations are right handed, thus all are negated.
+            rotx = -b1xy[ct].real() * td_gamma;
+            roty = -b1xy[ct].imag() * td_gamma;            
+            rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+           
+            create_CayleyKlein(rotx, roty, rotz, al1, bt1);             
+                                
+            al2 = al1 * al0 - std::conj(bt1) * bt0;
+            bt2 = bt1 * al0 + std::conj(al1) * bt0;
+            al0 = al2;
+            bt0 = bt2; 
+                               
+        }   
         // consider https://www.intel.com/content/www/us/en/developer/articles/technical/onemkl-improved-small-matrix-performance-using-just-in-time-jit-code.html
-        //apply_rot_CayleyKlein(ar2, ai2, br2, bi2, m0, m1);  
+        apply_rot_CayleyKlein(al2.real(), al2.imag(), bt2.real(), bt2.imag(), m0, output);  
+        */ 
     } 
 }
 
@@ -149,18 +166,18 @@ bloch::bloch(long nPosition, long nTime, long nCoil, bool saveAll)
     m_lNCoil  = nCoil;
     m_lStepPos  = saveAll ? 3 * (nTime+1) : 3;
     m_lStepTime = saveAll ? 3 : 0;
-    m_dB1combined = new std::complex<_T>[nTime*nPosition];
+    m_pB1combined = new std::complex<_T>[nTime*nPosition];
 
 #ifdef __SINGLE_PRECISION__
-    p_cblas_Xcgemm = &cblas_cgemm;
+    p_cblas_Xgemm = &cblas_cgemm;
 #else
-    p_cblas_Xcgemm = &cblas_zgemm;
+    p_cblas_Xgemm = &cblas_zgemm;
 #endif
 }
 
 bloch::~bloch()
 {
-    delete[] m_dB1combined;
+    delete[] m_pB1combined;
 }
 
 
@@ -177,8 +194,8 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
                 _T *pResult)             // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
 {
     // Calculate the E1 and E2 values.
-    _T e1 = T1 < 0. ? -1.0 : exp(-td/T1);
-    _T e2 = T2 < 0. ? -1.0 : exp(-td/T2);
+    _T e1 = T1 <= 0. ? -1.0 : exp(-td/T1);
+    _T e2 = T2 <= 0. ? -1.0 : exp(-td/T2);
     _T td_gamma = td * GAMMA_T;
  
 #ifdef __MEASURE_ELAPSED_TIME__
@@ -189,15 +206,15 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
     {
         _MKL_COMPLEX alpha, beta; // MKL_Complex8 for single precision. MKL_Complex16 double precision.
         alpha.real = 1.0; alpha.imag = 0.0;
-        beta.real = 0.0; beta.imag = 0.0;
+        beta.real  = 0.0; beta.imag  = 0.0;
         // consider gemm3m for faster calculation but higher numerical rounding errors
         // cblas_cgemm for complex float
-        p_cblas_Xcgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m_lNTime, m_lNPos, m_lNCoil, &alpha, pB1, m_lNTime, pSens, m_lNCoil, &beta, m_dB1combined, m_lNTime);
+        p_cblas_Xgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m_lNTime, m_lNPos, m_lNCoil, &alpha, pB1, m_lNTime, pSens, m_lNCoil, &beta, m_pB1combined, m_lNTime);
     }
     else
     {
         for(int cpos=0; cpos<m_lNPos; cpos++)
-            std::copy(pB1, pB1+m_lNTime, m_dB1combined + cpos*m_lNTime);
+            std::copy(pB1, pB1+m_lNTime, m_pB1combined + cpos*m_lNTime);
     }
 
 #ifdef __MEASURE_ELAPSED_TIME__
@@ -209,10 +226,10 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
     // =================== Do The Simulation! =================== 
     try
     {
-        std::vector<int> a(m_lNPos, 0);
+        std::vector<int> a(m_lNPos);
         std::iota (a.begin(), a.end(),0);
         std::for_each (__MODE__, std::begin(a), std::end(a), [&](int cpos){
-                timekernel(m_dB1combined+cpos*m_lNTime, pGr, pPos+cpos*3, *(pB0+cpos), td_gamma, pM0+cpos*3, e1, e2, pResult+cpos*m_lStepPos);
+            timekernel(m_pB1combined+cpos*m_lNTime, pGr, pPos+cpos*3, *(pB0+cpos), td_gamma, pM0+cpos*3, e1, e2, pResult+cpos*m_lStepPos);
         });      
     }
     catch( std::exception &ex )
