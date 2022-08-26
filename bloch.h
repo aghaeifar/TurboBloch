@@ -61,10 +61,10 @@ protected:
                     _T td_gamma, 
                     _T *m0,
                     _T e1, _T e2, 
-                    _T *pResult);    
+                    _T *pResult);   
 
 private:
-    std::complex<_T> *m_dB1combined; // combined b1
+    std::complex<_T> *m_pB1combined; // combined b1
     int m_lNTime;	// Number of time points
     int m_lNPos;    // Number of positions
     int m_lNCoil;   // Number of Coil
