@@ -1,4 +1,7 @@
 # Bloch Equation Simulator (C++ implementation)
+![Language](https://img.shields.io/github/languages/top/aghaeifar/bloch_simulator)
+[![Lates Release](https://img.shields.io/github/v/release/aghaeifar/bloch_simulator)](https://github.com/aghaeifar/bloch_simulator/releases)
+
 
 Efficient and fast implementation of Bloch equation simulator for magnetic resonance imaging (MRI) sequences, supporting parallel transmission (pTx).
 

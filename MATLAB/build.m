@@ -1,5 +1,4 @@
 clc
-clear
 
 build_dir   = fileparts(mfilename('fullpath'));
 parent_dir  = fileparts(build_dir);

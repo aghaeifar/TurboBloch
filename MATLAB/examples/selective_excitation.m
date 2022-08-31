@@ -61,6 +61,7 @@ end
 toc
 %%
 close all
+spm_viewer(reshape(result(1,end,:), sz), reshape(result(2,end,:), sz), reshape(result(3,end,:), sz));
 vin(reshape(result(1,end,:), sz))
 vin(reshape(result(2,end,:), sz))
 vin(reshape(result(3,end,:), sz))
