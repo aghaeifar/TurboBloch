@@ -103,14 +103,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     double *presult = mxGetPr(plhs[0]);
     
     // auto start = std::chrono::system_clock::now();
+    auto start = std::chrono::system_clock::now();
+
+    bloch bloch_obj(nPos, nTime, nCoil, saveAll, true);
     
-    bloch bloch_obj(nPos, nTime, nCoil, saveAll);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Memory allocation took " << elapsed.count() << " millisecond" << std::endl;
+    start = std::chrono::system_clock::now();
+
     if(bloch_obj.run(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, presult) == false)
         mexErrMsgTxt("Failed.");  
 
     //mxSetDimensions(plhs[0], dims, 3);
-    // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    // std::cout<< "Simulation Matlab " << elapsed.count() << " millisecond" << std::endl;
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    std::cout<< "Bloch simulation took " << elapsed.count() << " millisecond" << std::endl;
 
 }
 
