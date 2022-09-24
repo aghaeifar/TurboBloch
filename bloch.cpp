@@ -9,11 +9,16 @@
 #include <execution>
 #include <numeric> // std::inner_product, std::iota 
 #include <algorithm>
-#include "mkl.h"
 
-#ifdef __MEASURE_ELAPSED_TIME__
-#include <chrono>
+#ifndef __NOPTX__
+#include "mkl.h"
+#ifdef __SINGLE_PRECISION__
+typedef MKL_Complex8  _MKL_COMPLEX;
+#else
+typedef MKL_Complex16 _MKL_COMPLEX;
 #endif
+#endif
+
 
 #ifdef __SEQUENTIAL__
 #define __MODE__  (std::execution::seq)
@@ -21,15 +26,13 @@
 #define __MODE__  (std::execution::par_unseq)
 #endif
 
-#ifdef __SINGLE_PRECISION__
-typedef MKL_Complex8  _MKL_COMPLEX;
-#else
-typedef MKL_Complex16 _MKL_COMPLEX;
-#endif
+
 
 #define GAMMA_T 267522187.44
 
+#ifndef __NOPTX__
 void (*p_cblas_Xgemm)(const CBLAS_LAYOUT, const CBLAS_TRANSPOSE, const CBLAS_TRANSPOSE, const MKL_INT, const MKL_INT, const MKL_INT, const void *, const void *, const MKL_INT, const void *, const MKL_INT, const void *, void *, const MKL_INT);
+#endif
 
 // q = {x, y, z, w}
 void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
@@ -70,32 +73,36 @@ void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
 void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
 { 
     // see https://paroj.github.io/gltut/Positioning/Tut08%20Quaternions.html
-    _T phi = 0.;
+    _T phi = 0., s = 0., c = 0.;
+    int n = 1;
     // q = sin(θ/2)(xi+yj+zk) + cos(θ/2)
     if(nx == 0 && ny == 0)
     {  // Only gradients and off-resonance, no RF
         phi  = abs(nz);
+        s    = sin(0.5 * phi);
         q[0] = 0.;
         q[1] = 0.;
-        q[2] = sin(0.5 * phi) * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
+        q[2] = s * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
     }
     else if(nz == 0)
     {  // Only RF, no gradients and off-resonance
         phi  = sqrt(nx*nx + ny*ny);
-        _T sp = sin(0.5 * phi) / phi;
+        s    = sin(0.5 * phi);
+        _T sp= s / phi;
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = 0.; 
     }
     else
     {
-        phi = sqrt(nx*nx + ny*ny + nz*nz);
-        _T sp = sin(0.5 * phi) / phi; // /phi because [nx, ny, nz] is unit length in definition. This will be effective in the next lines, where nx, ny, nz * sp 
+        phi  = sqrt(nx*nx + ny*ny + nz*nz);
+        s    = sin(0.5 * phi);
+        _T sp= s / phi; // /phi because [nx, ny, nz] is unit length in definition. This will be effective in the next lines, where nx, ny, nz * sp 
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = nz * sp;        
     }
-    q[3] = cos(0.5 * phi); // 1. - sin_phi2*sin_phi2 is faster, but results differ
+    q[3] = sqrt(1. - s*s);// cos(0.5 * phi); // sqrt(1. - s*s) is faster
 }
 
 // ----------------------------------------------- //
@@ -159,25 +166,34 @@ void bloch::timekernel( std::complex<_T> *b1xy,
 
 // ----------------------------------------------- //
 
-bloch::bloch(long nPosition, long nTime, long nCoil, bool saveAll)
+bloch::bloch(long nPosition, long nTime, long nCoil, bool saveAll, bool isPTx)
 {
     m_lNPos   = nPosition;
     m_lNTime  = nTime;
     m_lNCoil  = nCoil;
-    m_lStepPos  = saveAll ? 3 * (nTime+1) : 3;
-    m_lStepTime = saveAll ? 3 : 0;
-    m_pB1combined = new std::complex<_T>[nTime*nPosition];
-
+    m_lStepPos    = saveAll ? 3 * (nTime+1) : 3;
+    m_lStepTime   = saveAll ? 3 : 0;
+    m_lStepB1     = 0;
+    m_pB1combined = NULL;
+#ifndef __NOPTX__
+    if(isPTx)
+    {
+        m_pB1combined = new std::complex<_T>[nTime*nPosition];
+        m_lStepB1 = nTime;
+    }
+        
 #ifdef __SINGLE_PRECISION__
     p_cblas_Xgemm = &cblas_cgemm;
 #else
     p_cblas_Xgemm = &cblas_zgemm;
 #endif
+#endif
 }
 
 bloch::~bloch()
 {
-    delete[] m_pB1combined;
+    if(m_pB1combined != NULL)
+        delete[] m_pB1combined;
 }
 
 
@@ -197,31 +213,19 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
     _T e1 = T1 <= 0. ? -1.0 : exp(-td/T1);
     _T e2 = T2 <= 0. ? -1.0 : exp(-td/T2);
     _T td_gamma = td * GAMMA_T;
+    std::complex<_T> *pB1combined = pB1;
  
-#ifdef __MEASURE_ELAPSED_TIME__
-    auto start = std::chrono::system_clock::now();
-#endif
-
-    if(pSens != NULL)
+#ifndef __NOPTX__
+    if(m_pB1combined != NULL)
     {
-        _MKL_COMPLEX alpha, beta; // MKL_Complex8 for single precision. MKL_Complex16 double precision.
+        _MKL_COMPLEX alpha, beta;
         alpha.real = 1.0; alpha.imag = 0.0;
         beta.real  = 0.0; beta.imag  = 0.0;
         // consider gemm3m for faster calculation but higher numerical rounding errors
-        // cblas_cgemm for complex float
         p_cblas_Xgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m_lNTime, m_lNPos, m_lNCoil, &alpha, pB1, m_lNTime, pSens, m_lNCoil, &beta, m_pB1combined, m_lNTime);
+        pB1combined = m_pB1combined;
     }
-    else
-    {
-        for(int cpos=0; cpos<m_lNPos; cpos++)
-            std::copy(pB1, pB1+m_lNTime, m_pB1combined + cpos*m_lNTime);
-    }
-
-#ifdef __MEASURE_ELAPSED_TIME__
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout << "B1 combined calculations took " << elapsed.count() << " milliseconds." << std::endl;
-    start = std::chrono::system_clock::now();
-#endif   
+#endif 
 
     // =================== Do The Simulation! =================== 
     try
@@ -229,7 +233,7 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
         std::vector<int> a(m_lNPos);
         std::iota (a.begin(), a.end(),0);
         std::for_each (__MODE__, std::begin(a), std::end(a), [&](int cpos){
-            timekernel(m_pB1combined+cpos*m_lNTime, pGr, pPos+cpos*3, *(pB0+cpos), td_gamma, pM0+cpos*3, e1, e2, pResult+cpos*m_lStepPos);
+            timekernel(pB1combined+cpos*m_lStepB1, pGr, pPos+cpos*3, *(pB0+cpos), td_gamma, pM0+cpos*3, e1, e2, pResult+cpos*m_lStepPos);
         });      
     }
     catch( std::exception &ex )
@@ -237,13 +241,7 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
         std::cout << "Simulation failed." << std::endl;
         std::cout << ex.what() << std::endl;
         return false;
-    }
-
-#ifdef __MEASURE_ELAPSED_TIME__
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout << "Bloch simulation took " << elapsed.count() << " milliseconds." << std::endl;
-#endif  
-
+    } 
     return true;
 }
 
@@ -256,15 +254,16 @@ extern "C" {
         _T *pB0,                 // m_lNPos x 1  [Tesla]
         _T *pPos,                // 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}                    
         std::complex<_T> *pSens, // m_lNCoils x m_lNPos [Tesla/Volt]: column-major order {c0p0, c1p0, c1p0,...,c0p1, c1p1, c1p1,...}
-        _T T1, _T T2,         // [second]
+        _T T1, _T T2,            // [second]
         _T *pM0,                 // 3 x m_lNPos : column-maj
         long nPosition, 
         long nTime, 
         long nCoil,
         _T *pResult,             // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
-        bool saveAll)               // return all time-points or only the final magnetization         
+        bool saveAll,            // return all time-points or only the final magnetization         
+        bool isPTx)
 {
-    bloch bloch_obj(nPosition, nTime, nCoil, saveAll);
+    bloch bloch_obj(nPosition, nTime, nCoil, saveAll, isPTx);
     return bloch_obj.run(pB1, pGr, td, pB0, pPos, pSens, T1, T2, pM0, pResult);
 }
 } // extern

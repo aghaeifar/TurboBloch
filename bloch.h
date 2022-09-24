@@ -34,13 +34,14 @@ extern "C"
                    long nTime,
                    long nCoil,
                    _T *pResult,             // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
-                   bool saveAll);           // return all time-points or only the final magnetization
+                   bool saveAll,            // return all time-points or only the final magnetization
+                   bool isPTx);
 } // extern
 
 class DllExport bloch
 {
 public:
-    bloch(long nPosition, long nTime, long nCoil, bool saveAll);
+    bloch(long nPosition, long nTime, long nCoil, bool saveAll, bool isPTx = true);
     ~bloch();
 
     bool run(std::complex<_T> *pB1,   // RF; m_lNTime x m_lNCoil [Volt]: column-major order {t0c0, t1c0, t2c0,...,t0c1, t1c1, t2c1,...}
@@ -68,7 +69,7 @@ private:
     int m_lNTime;	// Number of time points
     int m_lNPos;    // Number of positions
     int m_lNCoil;   // Number of Coil
-    int m_lStepPos, m_lStepTime;
+    int m_lStepPos, m_lStepTime, m_lStepB1;
 };
 
 #endif // _BLOCH_
