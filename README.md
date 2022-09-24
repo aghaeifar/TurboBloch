@@ -50,9 +50,9 @@ Shared library built for Linux and Windows can be downloaded in the repository r
 
 One can define following macros to disable/enable some features in the program:
 - ```__SEQUENTIAL__``` disables parallelization and run in sequential mode.
-- ```__MEASURE_ELAPSED_TIME__ ``` enables printing elapsed time for calculations.
 - ```__SINGLE_PRECISION__``` uses single precision floating-point format. Boost the speed at the cost of precision. All double inputs must be replaced with float.
-- ```__EXPORT_CLASS_BLOCH__```, creates exports when building a shared library in Windows.
+- ```__EXPORT_CLASS_BLOCH__``` creates exports when building a shared library in Windows.
+- ```__NOPTX__``` disables accepting PTx pulse and accordingly no Intel MKL dependency.
 ---
 
 ## Short manual:
