@@ -10,6 +10,10 @@
 #include <numeric> // std::inner_product, std::iota 
 #include <algorithm>
 
+#ifdef __FASTER__
+#include "sincos_table.h"
+#endif
+
 #ifndef __NOPTX__
 #include "mkl.h"
 #ifdef __SINGLE_PRECISION__
@@ -34,13 +38,16 @@ typedef MKL_Complex16 _MKL_COMPLEX;
 void (*p_cblas_Xgemm)(const CBLAS_LAYOUT, const CBLAS_TRANSPOSE, const CBLAS_TRANSPOSE, const MKL_INT, const MKL_INT, const MKL_INT, const void *, const void *, const MKL_INT, const void *, const MKL_INT, const void *, void *, const MKL_INT);
 #endif
 
+_T (*mysin)(_T in);
+_T (*mycos)(_T in);
+
 // q = {x, y, z, w}
 void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
 {
     _T t[3];
     // see https://blog.molecular-matters.com/2013/05/24/a-faster-quaternion-vector-multiplication/
-    if(q[0] == 0 && q[1] == 0) // no RF pulse case
-    {
+    if(q[0] == 0 && q[1] == 0) 
+    {   // Only gradients and off-resonance, no RF
         t[0] =-2*q[2]*m0[1];
         t[1] = 2*q[2]*m0[0];
 
@@ -48,8 +55,8 @@ void apply_rot_quaternion(_T q[4], _T *m0, _T *m1)
         m1[1] = m0[1] + q[3]*t[1] + q[2]*t[0];
         m1[2] = m0[2];
     }
-    else if(q[2] == 0) // no gradient and off-resonance
-    {
+    else if(q[2] == 0)
+    {   // Only RF, no gradients and off-resonance
         t[0] = 2*q[1]*m0[2];
         t[1] =-2*q[0]*m0[2];
         t[2] = 2*(q[0]*m0[1] - q[1]*m0[0]);
@@ -77,9 +84,8 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     int n = 1;
     // q = sin(θ/2)(xi+yj+zk) + cos(θ/2)
     if(nx == 0 && ny == 0)
-    {  // Only gradients and off-resonance, no RF
-        phi  = abs(nz);
-        s    = sin(0.5 * phi);
+    {   // Only gradients and off-resonance, no RF
+        s    = nz == 0? 0:mysin(0.5 * abs(nz));
         q[0] = 0.;
         q[1] = 0.;
         q[2] = s * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
@@ -87,7 +93,7 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     else if(nz == 0)
     {  // Only RF, no gradients and off-resonance
         phi  = sqrt(nx*nx + ny*ny);
-        s    = sin(0.5 * phi);
+        s    = mysin(0.5 * phi);
         _T sp= s / phi;
         q[0] = nx * sp;
         q[1] = ny * sp;
@@ -96,13 +102,13 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     else
     {
         phi  = sqrt(nx*nx + ny*ny + nz*nz);
-        s    = sin(0.5 * phi);
+        s    = mysin(0.5 * phi);
         _T sp= s / phi; // /phi because [nx, ny, nz] is unit length in definition. This will be effective in the next lines, where nx, ny, nz * sp 
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = nz * sp;        
     }
-    q[3] = sqrt(1. - s*s);// cos(0.5 * phi); // sqrt(1. - s*s) is faster
+    q[3] = mycos(0.5 * phi); // sqrt(1. - s*s) is faster
 }
 
 // ----------------------------------------------- //
@@ -120,48 +126,22 @@ void bloch::timekernel( std::complex<_T> *b1xy,
     _T rotx, roty, rotz;
     _T e1_1 = e1 - 1;  
     std::copy(m0, m0+3, output);  // setting starting magnetization
-    
-    if(e1 > 0 && e2 > 0) // including relaxations
-    {        
-        for (int ct=0; ct<m_lNTime; ct++, gr += 3)
-        {            
-            // rotations are right handed, thus all are negated.
-            rotx = -b1xy[ct].real() * td_gamma;
-            roty = -b1xy[ct].imag() * td_gamma;            
-            rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
-            
-            create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
-            apply_rot_quaternion(q, output, m1);
 
-            output += m_lStepTime;
-            output[0] = m1[0] * e2;
-            output[1] = m1[1] * e2;
-            output[2] = m1[2] * e1 - e1_1;            
-        }
+    for (int ct = 0; ct < m_lNTime; ct++, gr += 3)
+    {
+        // rotations are right handed, thus all are negated.
+        rotx = -b1xy[ct].real() * td_gamma;
+        roty = -b1xy[ct].imag() * td_gamma;
+        rotz = -std::inner_product(gr, gr + 3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+
+        create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
+        apply_rot_quaternion(q, output, m1);
+
+        output += m_lStepTime;
+        output[0] = m1[0] * e2;
+        output[1] = m1[1] * e2;
+        output[2] = m1[2] * e1 - e1_1;
     }
-    else // excluding relaxations, can we make combine all rotations into one and and improve run time? 
-    {   
-        /*
-        std::complex<_T> al0(1,0), bt0(0,0), al1, bt1, al2, bt2;
-        for (int ct=0; ct<m_lNTime; ct++, gr += 3)
-        {            
-            // rotations are right handed, thus all are negated.
-            rotx = -b1xy[ct].real() * td_gamma;
-            roty = -b1xy[ct].imag() * td_gamma;            
-            rotz = -std::inner_product(gr, gr+3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
-           
-            create_CayleyKlein(rotx, roty, rotz, al1, bt1);             
-                                
-            al2 = al1 * al0 - std::conj(bt1) * bt0;
-            bt2 = bt1 * al0 + std::conj(al1) * bt0;
-            al0 = al2;
-            bt0 = bt2; 
-                               
-        }   
-        // consider https://www.intel.com/content/www/us/en/developer/articles/technical/onemkl-improved-small-matrix-performance-using-just-in-time-jit-code.html
-        apply_rot_CayleyKlein(al2.real(), al2.imag(), bt2.real(), bt2.imag(), m0, output);  
-        */ 
-    } 
 }
 
 // ----------------------------------------------- //
@@ -188,6 +168,14 @@ bloch::bloch(long nPosition, long nTime, long nCoil, bool saveAll, bool isPTx)
     p_cblas_Xgemm = &cblas_zgemm;
 #endif
 #endif
+
+#ifdef __FASTER__
+mysin = &fast_sin;
+mycos = &fast_cos;
+#else
+mysin = &sin;
+mycos = &cos;
+#endif
 }
 
 bloch::~bloch()
@@ -210,8 +198,8 @@ bool bloch::run(std::complex<_T> *pB1,   // m_lNTime x m_lNCoil [Volt]: column-m
                 _T *pResult)             // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
 {
     // Calculate the E1 and E2 values.
-    _T e1 = T1 <= 0. ? -1.0 : exp(-td/T1);
-    _T e2 = T2 <= 0. ? -1.0 : exp(-td/T2);
+    _T e1 = T1 <= 0. ? 1.0 : exp(-td/T1);
+    _T e2 = T2 <= 0. ? 1.0 : exp(-td/T2);
     _T td_gamma = td * GAMMA_T;
     std::complex<_T> *pB1combined = pB1;
  
