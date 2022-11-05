@@ -71,6 +71,7 @@ if (WIN32)
 
 endif() 
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/lib)
 
 #set_target_properties(bloch_sim_shared PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_LIST_DIR}/lib)
 set_target_properties(bloch_sim_shared PROPERTIES OUTPUT_NAME bloch_sim)
