@@ -53,7 +53,7 @@ One can define following macros to disable/enable some features in the program:
 - ```__SINGLE_PRECISION__``` uses single precision floating-point format. Boost the speed at the cost of precision. All double inputs must be replaced with float.
 - ```__EXPORT_CLASS_BLOCH__``` creates exports when building a shared library in Windows.
 - ```__NOPTX__``` disables accepting PTx pulse and accordingly no Intel MKL dependency.
-- ```__FASTER__``` uses lookup table method to calculated sin and cos. It is expected to be faster.
+- ```__FASTER__``` uses lookup table method to calculate sine and cosine. It is expected to be faster.
 ---
 
 ## Short manual:
