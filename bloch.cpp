@@ -11,7 +11,7 @@
 #include <algorithm>
 
 #ifdef __FASTER__
-#include "sincos_table.h"
+#include "sincos_table.h" 
 #endif
 
 
@@ -20,12 +20,12 @@
 #else
 #define __MODE__  (std::execution::par_unseq)
 #endif
+     
 
+ 
+#define GAMMA_T 267522187.44  
 
-
-#define GAMMA_T 267522187.44
-
-_T (*mysin)(_T in);
+_T (*mysin)(_T in); 
 _T (*mycos)(_T in);
 
 // q = {x, y, z, w}
@@ -69,10 +69,11 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     // see https://paroj.github.io/gltut/Positioning/Tut08%20Quaternions.html
     _T phi = 0., s = 0., c = 0.;
     int n = 1;
-    // q = sin(θ/2)(xi+yj+zk) + cos(θ/2)
+    //q = sin(θ/2)(xi+yj+zk) + cos(θ/2)
     if(nx == 0 && ny == 0)
     {   // Only gradients and off-resonance, no RF
-        s    = nz == 0? 0:mysin(0.5 * abs(nz));
+        phi  = abs(nz); 
+        s    = nz == 0? 0:mysin(0.5 * phi);
         q[0] = 0.;
         q[1] = 0.;
         q[2] = s * (nz>0 ? 1:-1); // equal to nz/phi == nz/abs(nz) == sign(nz)
@@ -81,7 +82,7 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
     {  // Only RF, no gradients and off-resonance
         phi  = sqrt(nx*nx + ny*ny);
         s    = mysin(0.5 * phi);
-        _T sp= s / phi;
+        _T sp= s / phi; 
         q[0] = nx * sp;
         q[1] = ny * sp;
         q[2] = 0.; 
