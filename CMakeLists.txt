@@ -13,29 +13,24 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 ############################################################
 # Create a library
 ############################################################
 
 #Generate the shared library from the library sources
-add_library(bloch_sim_shared SHARED bloch.cpp)
+add_library(bloch_sim_shared SHARED bloch.cpp) 
 set_target_properties(bloch_sim_shared PROPERTIES OUTPUT_NAME bloch)
-#add_compile_definitions(__SINGLE_PRECISION__)
-#add_compile_definitions(__SEQUENTIAL__)
+add_compile_definitions(__SINGLE_PRECISION__)
+#add_compile_definitions(__SEQUENTIAL__)  
+#add_compile_definitions(__FASTER__)
 
 find_package(Matlab)
 
 if (UNIX)
-    
-    target_link_libraries(bloch_sim_shared 
-        pthread
-        tbb
-        dl
-    )
-
+    target_link_libraries(bloch_sim_shared pthread tbb dl)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64" )
-
     install(TARGETS bloch_sim_shared LIBRARY DESTINATION lib)    
 endif()  
 
@@ -43,10 +38,8 @@ if (WIN32)
     add_compile_definitions(__EXPORT_CLASS_BLOCH__) 
 endif() 
 
-
 if(Matlab_FOUND)
 	matlab_add_mex(NAME bloch_mex LINK_TO bloch_sim_shared SRC ./MATLAB/bloch_mex.cpp R2018a) 
-    #add_custom_command(TARGET bloch_mex POST_BUILD  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:bloch_mex> ${CMAKE_CURRENT_LIST_DIR}/lib)   
 endif()
 
 

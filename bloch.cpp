@@ -104,7 +104,7 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
 void bloch::timekernel( const std::complex<_T> *b1xy, 
                         const _T *gr,
                         const _T *pr, 
-                        const _T b0, 
+                        const _T *b0, 
                         const _T td_gamma, 
                         const _T *m0,
                         const _T e1, const _T e2, 
@@ -120,7 +120,7 @@ void bloch::timekernel( const std::complex<_T> *b1xy,
         // rotations are right handed, thus all are negated.
         rotx = -b1xy[ct].real() * td_gamma;
         roty = -b1xy[ct].imag() * td_gamma;
-        rotz = -std::inner_product(gr, gr + 3, pr, b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+        rotz = -std::inner_product(gr, gr + 3, pr, *b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
 
         create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
         apply_rot_quaternion(q, output, m1);
@@ -129,17 +129,24 @@ void bloch::timekernel( const std::complex<_T> *b1xy,
         output[0] = m1[0] * e2;
         output[1] = m1[1] * e2;
         output[2] = m1[2] * e1 - e1_1;
+
+        if(m_bHasDiffusion)
+        {
+            pr += 3;
+            b0 += 1;
+        }
     }
 }
 
 // ----------------------------------------------- //
 
-bloch::bloch(long nPosition, long nTime, bool saveAll)
+bloch::bloch(long nPosition, long nTime, bool hasDiffusion, bool saveAll)
 {
     m_lNPos   = nPosition;
     m_lNTime  = nTime;
-    m_lStepPos    = saveAll ? 3 * (nTime+1) : 3;
-    m_lStepTime   = saveAll ? 3 : 0;
+    m_lStepPos   = saveAll ? (nTime+1) : 1;
+    m_lStepTime  = saveAll ? 3 : 0;
+    m_bHasDiffusion = hasDiffusion;
 
 #ifdef __FASTER__
 mysin = &fast_sin;
@@ -180,10 +187,11 @@ bool bloch::run(const std::complex<_T> *pB1,   // RF; m_lNTime x 1 [Volt]
     // =================== Do The Simulation! =================== 
     try
     {
+        int step_diffusion = m_bHasDiffusion?m_lNPos:1;
         std::vector<int> a(m_lNPos);
         std::iota (a.begin(), a.end(),0);
         std::for_each (__MODE__, std::begin(a), std::end(a), [&](int cpos){
-            timekernel(pB1, pGr, pPos+cpos*3, *(pB0+cpos), td_gamma, pM0+cpos*3, e1, e2, pResult+cpos*m_lStepPos);
+            timekernel(pB1, pGr, pPos+3*cpos*step_diffusion, pB0+cpos*step_diffusion, td_gamma, pM0+3*cpos, e1, e2, pResult+3*cpos*m_lStepPos);
         });      
     }
     catch( std::exception &ex )
@@ -207,12 +215,14 @@ extern "C" {
         _T *pM0,                 // 3 x m_lNPos : column-maj
         int nPosition, 
         int nTime, 
-        _T *pResult,             // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
+        _T *pResult,            // 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
+        bool hasDiffusion,
         bool saveAll            // return all time-points or only the final magnetization         
         )
 { 
-    bloch bloch_obj(nPosition, nTime, saveAll);
+    bloch bloch_obj(nPosition, nTime, hasDiffusion, saveAll);
     return bloch_obj.run(pB1, pGr, td, pB0, pPos, T1, T2, pM0, pResult);
 }
 
 } // extern
+

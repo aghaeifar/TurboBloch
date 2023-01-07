@@ -24,7 +24,7 @@ typedef double _T;
 class DllExport bloch
 {
 public:
-    bloch(long nPosition, long nTime, bool saveAll);
+    bloch(long nPosition, long nTime, bool hasDiffusion=false, bool saveAll=false);
     ~bloch();
 
     bool run(const std::complex<_T> *pB1,   // RF; m_lNTime x 1 [Volt]: 
@@ -40,7 +40,7 @@ protected:
     void timekernel(const std::complex<_T> *b1xy, 
                     const _T *gr,
                     const _T *pr, 
-                    const _T b0, 
+                    const _T *b0, 
                     const _T td_gamma, 
                     const _T *m0,
                     const _T e1, const _T e2, 
@@ -50,6 +50,7 @@ private:
     int m_lNTime;	// Number of time points
     int m_lNPos;    // Number of positions
     int m_lStepPos, m_lStepTime;
+    bool m_bHasDiffusion;
 };
 
 #endif // _BLOCH_

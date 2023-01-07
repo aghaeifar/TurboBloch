@@ -5,6 +5,11 @@
  * Taken from qmath.h
  */
 
+#ifndef SINCOS_TABLE
+#define SINCOS_TABLE
+
+#include "bloch.h"
+
 #ifndef M_PI
 #define M_PI (3.14159265358979323846)
 #endif
@@ -270,7 +275,7 @@ const double sine_table[SINE_TABLE_SIZE] = {
     -0.024541228522912448
 };
 
-double fast_sin(double x)
+_T fast_sin(_T x)
 {
     int si = int(x * (0.5 * SINE_TABLE_SIZE / M_PI)); // Would be more accurate with qRound, but slower.
     double d = x - si * (2.0 * M_PI / SINE_TABLE_SIZE);
@@ -280,7 +285,7 @@ double fast_sin(double x)
     return sine_table[si] + (sine_table[ci] - 0.5 * sine_table[si] * d) * d;
 }
 
-double fast_cos(double x)
+_T fast_cos(_T x)
 {
     int ci = int(x * (0.5 * SINE_TABLE_SIZE / M_PI)); // Would be more accurate with qRound, but slower.
     double d = x - ci * (2.0 * M_PI / SINE_TABLE_SIZE);
@@ -289,3 +294,5 @@ double fast_cos(double x)
     ci &= SINE_TABLE_SIZE - 1;
     return sine_table[si] - (sine_table[ci] + 0.5 * sine_table[si] * d) * d;
 }
+
+#endif
