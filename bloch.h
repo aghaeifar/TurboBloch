@@ -24,18 +24,23 @@ typedef double _T;
 class DllExport bloch
 {
 public:
-    bloch(long nPosition, long nTime, bool hasDiffusion=false, bool saveAll=false);
+    bloch(long n_spatial_position,          // number of spatial positions or spins 
+          long n_timepoints,                // number of time points 
+          bool save_all_timepoints = false, // save final magnetization or whole evolution of spins
+          bool is_relaxation_constant = true
+          );
     ~bloch();
 
-    bool run(const std::complex<_T> *pB1,   // RF; m_lNTime x 1 [Volt]: 
-             const _T *pGr,                 // gradients; 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             const _T td,                   // dwell-time; [second]
-             const _T *pB0,                 // off-resonance; m_lNPos x 1  [Tesla]
-             const _T *pPos,                // spatial positions; 3 x m_lNPos  [meter] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             const _T T1, const _T T2,      // relaxations; [second]
-             const _T *pM0,                 // initial magnetization; 3 x m_lNPos : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
-             _T *pResult);                  // output; 3 x (m_lNTime+1) x m_lNPos : column-major order {x1t0,y1t0,z1t0,...,x1tn,y1tn,z1tn,x2t0,y2t0,z2t0,...}, result equals m0 at t0
-
+    bool run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x 1
+             const _T *pGr,              // gradients [T/m]       ; 3 x n_timepoints: column-major order {gx1,gy1,gz1,gx2,gy2,gz2,...,gxm,gym,gzm}
+             const _T td,                // dwell-time [Sec]      ;
+             const _T *pB0,              // off-resonance [T]     ; 1 x n_spatial_position
+             const _T *pPos,             // spatial positions [m] ; 3 x n_spatial_position: column-major order {x1,y1,z1,...,xm,ym,zm}
+             const _T *T1,               // relaxations T1 [Sec]  ; 1 or 1 x n_spatial_position depends on "is_relaxation_constant"
+             const _T *T2,               // relaxations T2 [Sec]  ; 1 or 1 x n_spatial_position depends on "is_relaxation_constant"
+             const _T *pM0,              // initial magnetization ; 3 x n_spatial_position : column-major order {x1,y1,z1,x2,y2,z2,...,xm,ym,zm}
+             _T *pResult                 // output                ; 3 x n_spatial_position or 3 x (n_timepoints+1) x n_spatial_position, depends on "save_all_timepoints": column-major order {x1t1,y1t1,z1t1,...,x1tn,y1tn,z1tn,x2t1,y2t1,z2t1,...,x2tn,y2tn,z2tn,...,xmt1,ymt1,zmt1,...,xmtn,ymtn,zmtn}, result equals m0 at t0
+            );
 protected:
     void timekernel(const std::complex<_T> *b1xy, 
                     const _T *gr,
@@ -43,14 +48,15 @@ protected:
                     const _T *b0, 
                     const _T td_gamma, 
                     const _T *m0,
-                    const _T e1, const _T e2, 
+                    const _T e1, 
+                    const _T e2, 
                     _T *pResult);   
 
 private:
     int m_lNTime;	// Number of time points
     int m_lNPos;    // Number of positions
     int m_lStepPos, m_lStepTime;
-    bool m_bHasDiffusion;
+    bool m_bConstantT2T2;
 };
 
 #endif // _BLOCH_

@@ -6,7 +6,6 @@ FA      = 45 * pi/180;
 ntime   = 400; % number of samples
 rf_len  = 4e-3; % second
 td      = rf_len/ntime; %  dwell time 
-ncoil   = 8;
 voxel_sz= [3, 3, 3] * 1e-3;
 fov     = [-60 45; -30 70; -90 90] * 1e-3; % [-100 100; -130 110; -120 120] * 1e-3;
 rf_tbw  = 12;
@@ -23,7 +22,7 @@ npos    = size(pr, 2); % number of spatial positions
 b0 = zeros(size(prx));
 
 % sinc pulse
-b1 = complex(ones(ntime, ncoil) * FA/gamma/rf_len/ncoil); % this is for non-selective
+b1 = complex(ones(ntime, 1) * FA/gamma/rf_len); % this is for non-selective
 if is_sinc
     t = linspace(-rf_len/2, rf_len/2, ntime); % must be column
     BW = rf_tbw/rf_len;
@@ -31,11 +30,9 @@ if is_sinc
     snc = sin(x) ./ x; 
     hamming_window = 0.53836 + 0.46164*cos(2*pi * linspace(-0.5,0.5,ntime));
     rf = transpose(snc .* hamming_window);
-    rf = repmat(rf / sum(rf), [1 ncoil]); % normalize
-    b1 = complex(rf * FA/gamma/td/ncoil);
+    rf = rf / sum(rf); % normalize
+    b1 = complex(rf * FA/gamma/td);
 end
-
-sens = complex(ones(ncoil, npos));
 
 % gradients
 gr = zeros(3, ntime);
@@ -50,11 +47,14 @@ m0 = [zeros(2, npos); ones(1, npos)];
 b1 = real(b1) + 1i*real(b1);
 b1 = b1 / sqrt(2);
 
+T1 = 100000;
+T2 = 100000;
+
 %% run
 tic
 try
 clc
-result    = bloch_mex(b1, gr, td, b0(:), pr, 100000, 100000, sens, m0, false);
+result = bloch_mex((b1), (gr), (td), (b0(:)), (pr), (T1), (T2), (m0), false);
 catch me_err
 me_err
 end

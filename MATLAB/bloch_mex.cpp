@@ -9,41 +9,72 @@
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    double tp = 0;   // second  m_lNTime x 1
-    double T1, T2;   // second
-    long nRow, nCol, nPos, nTime, nCoil;
-    std::complex<double> *pb1=NULL, *psens=NULL;
-    double* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
+    _T td = 0;   // second  m_lNTime x 1
+    
+    _T T1a = 10000., T2a=10000. ;
+    _T *T1=&T1a, *T2=&T2a;   // second
+
+    long nRow, nCol, nPos, nTime;
+    std::complex<_T> *pb1=NULL;
+    _T* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
     std::stringstream buffer;
     
     if (nrhs < 9)
         mexErrMsgTxt("Wrong number of inputs.");
-
+    
+    for (int i=1; i<8; i++)
+    #ifdef __SINGLE_PRECISION__
+        if (mxIsDouble(prhs[i]))
+            mexErrMsgTxt("all inputs must be single!");
+    #else
+        if (mxIsSingle(prhs[i]))
+            mexErrMsgTxt("all inputs must be double!");
+    #endif
     // --------- map B1 ---------
     if(!mxIsComplex(prhs[0]))
         mexErrMsgTxt("B1 must be complex");
-    nTime = mxGetM(prhs[0]); // m_lNTime
-    nCoil = mxGetN(prhs[0]); // m_lNCoils
-    pb1 = reinterpret_cast<std::complex<double>*>(mxGetComplexDoubles (prhs[0]));
+    if (mxGetM(prhs[0]) * mxGetN(prhs[0]) != mxGetN(prhs[0])+mxGetM(prhs[0])-1)
+        mexErrMsgTxt("B1 must be vector.");
+    nTime = mxGetM(prhs[0]) * mxGetN(prhs[0]); // m_lNTime
 
+    #ifdef __SINGLE_PRECISION__
+    pb1 = reinterpret_cast<std::complex<_T>*>(mxGetComplexSingles (prhs[0]));
+    #else    
+    pb1 = reinterpret_cast<std::complex<_T>*>(mxGetComplexDoubles (prhs[0]));
+    #endif
+    
+    
     // --------- map gr ---------
     if (mxGetM(prhs[1]) != 3 || mxGetN(prhs[1]) != nTime)
     {
         buffer << "Expected input for gr is 3x" <<nTime<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    pgr = mxGetPr(prhs[1]);
+    #ifdef __SINGLE_PRECISION__
+    pgr = mxGetSingles(prhs[1]);
+    #else
+    pgr = mxGetDoubles(prhs[1]);
+    #endif
+    
 
-    // --------- map tp ---------
+    // --------- map td ---------
     if (mxGetM(prhs[2]) * mxGetN(prhs[2]) != 1)
-        mexErrMsgTxt("Expected input for tp is 1x1");
-    tp= *mxGetPr(prhs[2]);
+        mexErrMsgTxt("Expected input for td is 1x1");
+    #ifdef __SINGLE_PRECISION__
+    td = *mxGetSingles(prhs[2]);
+    #else
+    td = *mxGetDoubles(prhs[2]);
+    #endif
 
     // --------- map b0 ---------
     if (mxGetM(prhs[3]) * mxGetN(prhs[3]) != mxGetN(prhs[3])+mxGetM(prhs[3])-1)
         mexErrMsgTxt("B0 must be vector.");
     nPos = mxGetM(prhs[3]) * mxGetN(prhs[3]);
-    pb0 = mxGetPr(prhs[3]);
+    #ifdef __SINGLE_PRECISION__
+    pb0 = mxGetSingles(prhs[3]);
+    #else
+    pb0 = mxGetDoubles(prhs[3]);
+    #endif
 
     // --------- map pr ---------
     if (mxGetM(prhs[4]) != 3 || mxGetN(prhs[4]) != nPos)
@@ -51,72 +82,80 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         buffer << "Expected input for pr is 3x" <<nPos<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    ppr = mxGetPr(prhs[4]);
+    #ifdef __SINGLE_PRECISION__
+    ppr = mxGetSingles(prhs[4]);
+    #else
+    ppr = mxGetDoubles(prhs[4]);
+    #endif
+    
+    if (mxGetM(prhs[5]) != 0) // empty input == []
+        #ifdef __SINGLE_PRECISION__
+        T1 = mxGetSingles(prhs[5]);
+        #else
+        T1 = mxGetDoubles(prhs[5]);
+        #endif
 
-    if (mxGetM(prhs[5]) == 0) // empty input == []
-        T1 = -1.0;
-    else
-        T1 = *mxGetPr(prhs[5]);
+    if (mxGetM(prhs[6]) != 0)
+        #ifdef __SINGLE_PRECISION__
+        T2 = mxGetSingles(prhs[6]);
+        #else
+        T2 = mxGetDoubles(prhs[6]);
+        #endif
 
-    if (mxGetM(prhs[6]) == 0)
-        T2 = -1.0;
-    else
-        T2 = *mxGetPr(prhs[6]);
-
-    // --------- map sens ---------
-    if (mxGetM(prhs[7]) == 0)
-    {
-        nCoil = 1;
-        psens = NULL;
-    }
-    else 
-    {
-        if(!mxIsComplex(prhs[7]))
-            mexErrMsgTxt("Sensitivity map must be complex");
-        if(mxGetM(prhs[7]) != nCoil || mxGetN(prhs[7]) != nPos)
-        {
-            buffer << "Expected input for sensitivity is "<<nCoil<<"x"<<nPos<<std::endl;
-            mexErrMsgTxt(buffer.str().c_str());
-        }
-        psens = reinterpret_cast<std::complex<double>*>(mxGetComplexDoubles(prhs[7]));
-    }
+    bool isT1T2Constant = true;
+    if (mxGetM(prhs[5]) * mxGetN(prhs[5]) == nPos && mxGetM(prhs[6]) * mxGetN(prhs[6]) == nPos)
+        isT1T2Constant = false;
 
     // --------- m0 ---------
-    if (mxGetM(prhs[8]) != 3 || mxGetN(prhs[8]) != nPos)
+    if (mxGetM(prhs[7]) != 3 || mxGetN(prhs[7]) != nPos)
     {
         buffer << "Expected input for m0 is 3x" <<nPos<<std::endl;
         mexErrMsgTxt(buffer.str().c_str());
     }
-    pm0 = mxGetPr(prhs[8]);
+    #ifdef __SINGLE_PRECISION__
+    pm0 = mxGetSingles(prhs[7]);
+    #else
+    pm0 = mxGetDoubles(prhs[7]);
+    #endif
 
     // --------- save all -----------
     bool saveAll = false;
-    if(nrhs > 9)
-        if (mxIsLogicalScalar(prhs[9]) && mxGetM(prhs[9]) != 0)
-            saveAll = *mxGetLogicals(prhs[9]);
+    if(nrhs > 7)
+        if (mxIsLogicalScalar(prhs[8]) && mxGetM(prhs[8]) != 0)
+            saveAll = *mxGetLogicals(prhs[8]);
 
     mwSize info, dims[3];
     dims[0] = 3;
     dims[1] = saveAll ? nTime+1 : 1;
     dims[2] = nPos;
-    plhs[0] = mxCreateNumericArray(3, dims, mxDOUBLE_CLASS, mxREAL);
-    double *presult = mxGetPr(plhs[0]);
+
+    
+    plhs[0] = mxCreateNumericArray(3, dims, 
+    #ifdef __SINGLE_PRECISION__
+            mxSINGLE_CLASS, 
+    #else
+            mxDOUBLE_CLASS,
+    #endif
+            mxREAL);
+    
+    
+    _T *presult = 
+    #ifdef __SINGLE_PRECISION__
+        mxGetSingles(plhs[0]);
+    #else
+        mxGetDoubles(plhs[0]);
+    #endif
+
     
     // auto start = std::chrono::system_clock::now();
     auto start = std::chrono::system_clock::now();
 
-    bloch bloch_obj(nPos, nTime, nCoil, saveAll, true);
-    
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
-    std::cout<< "Memory allocation took " << elapsed.count() << " millisecond" << std::endl;
-    start = std::chrono::system_clock::now();
-
-    if(bloch_obj.run(pb1, pgr, tp, pb0, ppr, psens, T1, T2, pm0, presult) == false)
+    bloch bloch_obj(nPos, nTime, saveAll, isT1T2Constant);
+    if(bloch_obj.run(pb1, pgr, td, pb0, ppr, T1, T2, pm0, presult) == false)
         mexErrMsgTxt("Failed.");  
 
     //mxSetDimensions(plhs[0], dims, 3);
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
     std::cout<< "Bloch simulation took " << elapsed.count() << " millisecond" << std::endl;
-
 }
 
