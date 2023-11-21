@@ -46,11 +46,22 @@ m0 = [zeros(2, npos); ones(1, npos)];
 % add phase to RF
 b1 = real(b1) + 1i*real(b1);
 b1 = b1 / sqrt(2);
+b1 = repmat(b1, [1, npos]);
 
 T1 = 100000;
 T2 = 100000;
 
+b1= single(b1);
+gr= single(gr);
+m0= single(m0);
+b0= single(b0);
+pr= single(pr);
+T1 = single(T1);
+td = single(td);
+T2 = single(T2);
+
 %% run
+% B1 (complex), gr, td, b0, pr, t1, T2, m0, save_all
 tic
 try
 clc
