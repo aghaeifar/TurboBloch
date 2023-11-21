@@ -6,11 +6,10 @@
 #include "mex.h"
 #include "matrix.h"
 
-
+// B1 (complex), gr, td, b0, pr, t1, T2, m0, save_all
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     _T td = 0;   // second  m_lNTime x 1
-    
     _T T1a = 10000., T2a=10000. ;
     _T *T1=&T1a, *T2=&T2a;   // second
 
@@ -19,7 +18,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     _T* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
     std::stringstream buffer;
     
-    if (nrhs < 9)
+    if (nrhs < 8)
         mexErrMsgTxt("Wrong number of inputs.");
     
     for (int i=1; i<8; i++)
@@ -30,12 +29,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (mxIsSingle(prhs[i]))
             mexErrMsgTxt("all inputs must be double!");
     #endif
+
     // --------- map B1 ---------
     if(!mxIsComplex(prhs[0]))
         mexErrMsgTxt("B1 must be complex");
-    if (mxGetM(prhs[0]) * mxGetN(prhs[0]) != mxGetN(prhs[0])+mxGetM(prhs[0])-1)
-        mexErrMsgTxt("B1 must be vector.");
-    nTime = mxGetM(prhs[0]) * mxGetN(prhs[0]); // m_lNTime
+
+    nTime = mxGetM(prhs[0]); // m_lNTime
+    nPos  = mxGetN(prhs[0]); // m_lNPos
 
     #ifdef __SINGLE_PRECISION__
     pb1 = reinterpret_cast<std::complex<_T>*>(mxGetComplexSingles (prhs[0]));
@@ -69,7 +69,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // --------- map b0 ---------
     if (mxGetM(prhs[3]) * mxGetN(prhs[3]) != mxGetN(prhs[3])+mxGetM(prhs[3])-1)
         mexErrMsgTxt("B0 must be vector.");
-    nPos = mxGetM(prhs[3]) * mxGetN(prhs[3]);
+    if(nPos != mxGetM(prhs[3]) * mxGetN(prhs[3]))
+    {
+        buffer << "B0 must be a vector or a column of size " <<nPos<<" but it is " << mxGetM(prhs[3]) * mxGetN(prhs[3]) <<std::endl;
+        mexErrMsgTxt(buffer.str().c_str());
+    }
     #ifdef __SINGLE_PRECISION__
     pb0 = mxGetSingles(prhs[3]);
     #else
@@ -88,23 +92,27 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     ppr = mxGetDoubles(prhs[4]);
     #endif
     
-    if (mxGetM(prhs[5]) != 0) // empty input == []
-        #ifdef __SINGLE_PRECISION__
-        T1 = mxGetSingles(prhs[5]);
-        #else
-        T1 = mxGetDoubles(prhs[5]);
-        #endif
+    // --------- T1 & T2 ---------
+    if (mxGetM(prhs[5]) * mxGetN(prhs[5]) != 1)
+        mexErrMsgTxt("Expected input for T1 is 1x1");
+    #ifdef __SINGLE_PRECISION__
+    T1 = mxGetSingles(prhs[5]);
+    #else
+    T1 = mxGetDoubles(prhs[5]);
+    #endif
 
-    if (mxGetM(prhs[6]) != 0)
-        #ifdef __SINGLE_PRECISION__
-        T2 = mxGetSingles(prhs[6]);
-        #else
-        T2 = mxGetDoubles(prhs[6]);
-        #endif
+    if (mxGetM(prhs[6]) * mxGetN(prhs[6]) != 1)
+        mexErrMsgTxt("Expected input for T2 is 1x1");
+    #ifdef __SINGLE_PRECISION__
+    T2 = mxGetSingles(prhs[6]);
+    #else
+    T2 = mxGetDoubles(prhs[6]);
+    #endif
+
 
     bool isT1T2Constant = true;
-    if (mxGetM(prhs[5]) * mxGetN(prhs[5]) == nPos && mxGetM(prhs[6]) * mxGetN(prhs[6]) == nPos)
-        isT1T2Constant = false;
+    // if (mxGetM(prhs[5]) * mxGetN(prhs[5]) == nPos && mxGetM(prhs[6]) * mxGetN(prhs[6]) == nPos)
+    //     isT1T2Constant = false;
 
     // --------- m0 ---------
     if (mxGetM(prhs[7]) != 3 || mxGetN(prhs[7]) != nPos)
