@@ -31,7 +31,7 @@ public:
           );
     ~bloch();
 
-    bool run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x 1
+    bool run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x n_spatial_position
              const _T *pGr,              // gradients [T/m]       ; 3 x n_timepoints: column-major order {gx1,gy1,gz1,gx2,gy2,gz2,...,gxm,gym,gzm}
              const _T td,                // dwell-time [Sec]      ;
              const _T *pB0,              // off-resonance [T]     ; 1 x n_spatial_position
@@ -42,11 +42,10 @@ public:
              _T *pResult                 // output                ; 3 x n_spatial_position or 3 x (n_timepoints+1) x n_spatial_position, depends on "save_all_timepoints": column-major order {x1t1,y1t1,z1t1,...,x1tn,y1tn,z1tn,x2t1,y2t1,z2t1,...,x2tn,y2tn,z2tn,...,xmt1,ymt1,zmt1,...,xmtn,ymtn,zmtn}, result equals m0 at t0
             );
 protected:
-    void timekernel(const std::complex<_T> *b1xy, 
+    void timekernel(const std::complex<_T> *b1, 
                     const _T *gr,
                     const _T *pr, 
                     const _T *b0, 
-                    const _T td_gamma, 
                     const _T *m0,
                     const _T e1, 
                     const _T e2, 
@@ -57,6 +56,7 @@ private:
     int m_lNPos;    // Number of positions
     int m_lStepPos, m_lStepTime;
     bool m_bConstantT2T2;
+    _T m_td_gamma;
 };
 
 #endif // _BLOCH_

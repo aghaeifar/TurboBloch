@@ -95,11 +95,10 @@ void create_quaternion(_T nx, _T ny, _T nz, _T q[4])
 
 // ----------------------------------------------- //
 
-void bloch::timekernel( const std::complex<_T> *b1xy, 
+void bloch::timekernel( const std::complex<_T> *b1, 
                         const _T *gr,
                         const _T *pr, 
                         const _T *b0, 
-                        const _T td_gamma, 
                         const _T *m0,
                         const _T e1, 
                         const _T e2, 
@@ -114,9 +113,9 @@ void bloch::timekernel( const std::complex<_T> *b1xy,
     {
         // =================== p r e c e s s i o n ===================
         // rotations are right handed, thus all are negated.
-        rotx = -b1xy[ct].real() * td_gamma;
-        roty = -b1xy[ct].imag() * td_gamma;
-        rotz = -std::inner_product(gr, gr + 3, pr, *b0) * td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
+        rotx = -b1[ct].real() * m_td_gamma;
+        roty = -b1[ct].imag() * m_td_gamma;
+        rotz = -std::inner_product(gr, gr + 3, pr, *b0) * m_td_gamma; // -(gx*px + gy*py + gz*pz + b0) * dT * gamma
 
         create_quaternion(-rotx, -roty, -rotz, q); // quaternion needs additional sign reverse because looking down the axis of rotation, positive rotations appears clockwise
         apply_rot_quaternion(q, output, m1); // m1 = q*output 
@@ -151,7 +150,7 @@ bloch::~bloch()
 
 // ----------------------------------------------- //
 
-bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x 1
+bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x n_spatial_position
                 const _T *pGr,              // gradients [T/m]       ; 3 x n_timepoints: column-major order {gx1,gy1,gz1,gx2,gy2,gz2,...,gxm,gym,gzm}
                 const _T td,                // dwell-time [Sec]      ;
                 const _T *pB0,              // off-resonance [T]     ; 1 x n_spatial_position
@@ -162,7 +161,7 @@ bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoi
                 _T *pResult                 // output                ; 3 x n_spatial_position or 3 x (n_timepoints+1) x n_spatial_position, depends on "save_all_timepoints": column-major order {x1t1,y1t1,z1t1,...,x1tn,y1tn,z1tn,x2t1,y2t1,z2t1,...,x2tn,y2tn,z2tn,...,xmt1,ymt1,zmt1,...,xmtn,ymtn,zmtn}, result equals m0 at t0
                 )                
 {
-    _T td_gamma = td * _T(GAMMA_T);
+    m_td_gamma = td * _T(GAMMA_T);
     _T e1 = exp(-td / (*T1)), e2 = exp(-td / (*T2));  
     // =================== Do The Simulation! =================== 
     try
@@ -175,7 +174,7 @@ bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoi
                 e1 = exp(-td / T1[cpos]);
                 e2 = exp(-td / T2[cpos]);
             }
-            timekernel(pB1, pGr, pPos+3*cpos, pB0+cpos, td_gamma, pM0+3*cpos, e1, e2, pResult+3*cpos*m_lStepPos);
+            timekernel(pB1+cpos*m_lNTime, pGr, pPos+3*cpos, pB0+cpos, pM0+3*cpos, e1, e2, pResult+3*cpos*m_lStepPos);
         });      
     }
     catch( std::exception &ex )
@@ -190,7 +189,7 @@ bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoi
 
 extern "C" {
         bool bloch_sim(
-        std::complex<_T> *pB1,  // m_lNTime x 1 [Volt] 
+        std::complex<_T> *pB1,  // m_lNTime x x n_spatial_position [Tesla] 
         _T *pGr,                // 3 x m_lNTime [Tesla/m] : column-major order {x1,y1,z1,x2,y2,z2,x3,y3,z3,...}
         _T td,                  // [second]
         _T *pB0,                // m_lNPos x 1  [Tesla]
@@ -210,4 +209,3 @@ extern "C" {
 }
 
 } // extern
-
