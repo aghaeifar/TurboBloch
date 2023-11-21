@@ -29,10 +29,8 @@ Build and install Bloch simulator as a shared library:
 
 ```sh
 $ cd bloch_simulator
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
+$ cmake -B ./build
+$ cmake --build ./build --config Release
 $ sudo make install
 ```
 
