@@ -169,12 +169,14 @@ bool bloch::run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoi
         std::vector<int> a(m_lNPos);
         std::iota (a.begin(), a.end(),0);
         std::for_each (__MODE__, std::begin(a), std::end(a), [&](int cpos){
-            if(m_bConstantT2T2 == false)
-            {
-                e1 = exp(-td / T1[cpos]);
-                e2 = exp(-td / T2[cpos]);
-            }
-            timekernel(pB1+cpos*m_lNTime, pGr, pPos+3*cpos, pB0+cpos, pM0+3*cpos, e1, e2, pResult+3*cpos*m_lStepPos);
+            timekernel( pB1 + cpos*m_lNTime, 
+                        pGr, 
+                        pPos + 3*cpos, 
+                        pB0 + cpos, 
+                        pM0 + 3*cpos, 
+                        m_bConstantT2T2 ? e1 : exp(-td/T1[cpos]), 
+                        m_bConstantT2T2 ? e2 : exp(-td/T2[cpos]), 
+                        pResult + 3*cpos*m_lStepPos);
         });      
     }
     catch( std::exception &ex )
