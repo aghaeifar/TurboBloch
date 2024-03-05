@@ -24,16 +24,17 @@ typedef double _T;
 class DllExport bloch
 {
 public:
-    bloch(long n_spatial_position,          // number of spatial positions or spins 
-          long n_timepoints,                // number of time points 
+    bloch(size_t n_spatial_position,          // number of spatial positions or spins 
+          size_t n_timepoints,                // number of time points 
           bool save_all_timepoints = false, // save final magnetization or whole evolution of spins
-          bool is_relaxation_constant = true
+          bool is_relaxation_constant = true,
+          bool is_dwelltime_constant = true
           );
     ~bloch();
 
     bool run(const std::complex<_T> *pB1,// RF pulse [T]          ; n_timepoints x n_spatial_position
              const _T *pGr,              // gradients [T/m]       ; 3 x n_timepoints: column-major order {gx1,gy1,gz1,gx2,gy2,gz2,...,gxm,gym,gzm}
-             const _T td,                // dwell-time [Sec]      ;
+             const _T *dt,               // time step [Sec]       ; 1 x n_timepoints
              const _T *pB0,              // off-resonance [T]     ; 1 x n_spatial_position
              const _T *pPos,             // spatial positions [m] ; 3 x n_spatial_position: column-major order {x1,y1,z1,...,xm,ym,zm}
              const _T *T1,               // relaxations T1 [Sec]  ; 1 or 1 x n_spatial_position depends on "is_relaxation_constant"
@@ -47,16 +48,16 @@ protected:
                     const _T *pr, 
                     const _T *b0, 
                     const _T *m0,
-                    const _T e1, 
-                    const _T e2, 
+                    const _T T1, 
+                    const _T T2, 
                     _T *pResult);   
 
 private:
-    int m_lNTime;	// Number of time points
-    int m_lNPos;    // Number of positions
-    int m_lStepPos, m_lStepTime;
-    bool m_bConstantT2T2;
-    _T m_td_gamma;
+    _T *m_dt;       // Time step
+    size_t m_lNTime;	// Number of time points
+    size_t m_lNPos;    // Number of positions
+    size_t m_lStepPos, m_lStepTime;
+    bool m_bConstantT2T2, m_bConstantDwellTime;
 };
 
 #endif // _BLOCH_

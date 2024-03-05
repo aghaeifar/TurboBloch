@@ -65,40 +65,41 @@ T2 = single(T2);
 tic
 try
 clc
-result = bloch_mex((b1), (gr), (td), (b0(:)), (pr), (T1), (T2), (m0), false);
+result = bloch_mex(b1, gr, td, b0(:), pr, T1, T2, m0, false);
 catch me_err
 me_err
 end
 toc
-%%
-close all
-spm_viewer(reshape(result(1,end,:), sz), reshape(result(2,end,:), sz), reshape(result(3,end,:), sz));
-vin(reshape(result(1,end,:), sz))
-vin(reshape(result(2,end,:), sz))
-vin(reshape(result(3,end,:), sz))
-% for mex file is open error
 clear functions
+%%
+% close all
+% spm_viewer(reshape(result(1,end,:), sz), reshape(result(2,end,:), sz), reshape(result(3,end,:), sz));
+% vin(reshape(result(1,end,:), sz))
+% vin(reshape(result(2,end,:), sz))
+% vin(reshape(result(3,end,:), sz))
+% % for mex file is open error
+% clear functions
 
 %%
 close all
-vin(reshape(result(1,100,:), sz))
-vin(reshape(result(2,100,:), sz))
-vin(reshape(result(3,100,:), sz))
+vin(reshape(result(1,1,:), sz))
+vin(reshape(result(2,1,:), sz))
+vin(reshape(result(3,1,:), sz))
 
 
 %% off-resonance, first run the example above 
-m0 = result;
-rot= 90 * pi/180 / td / gamma;
-b0 = ones(npos, 1) * rot; % Tesla
-b1 = complex(zeros(1,size(b1,2))); % no rf
-gr = [0;0;0]; % no gradient
-
-result2    = bloch_mex(b1, gr, td, b0(:), pr, 1000, 1000, sens, m0);
-clear functions
-
-close all
-vin(reshape(result2(1,:), sz))
-vin(reshape(result2(2,:), sz))
-vin(reshape(result2(3,:), sz))
+% m0 = result;
+% rot= 90 * pi/180 / td / gamma;
+% b0 = ones(npos, 1) * rot; % Tesla
+% b1 = complex(zeros(1,size(b1,2))); % no rf
+% gr = [0;0;0]; % no gradient
+% 
+% result2    = bloch_mex(b1, gr, td, b0(:), pr, 1000, 1000, sens, m0);
+% clear functions
+% 
+% close all
+% vin(reshape(result2(1,:), sz))
+% vin(reshape(result2(2,:), sz))
+% vin(reshape(result2(3,:), sz))
 
 

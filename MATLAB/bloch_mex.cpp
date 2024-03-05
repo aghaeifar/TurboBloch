@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <vector>
 #include "../bloch.h"
 
 #include "mex.h"
@@ -9,11 +10,11 @@
 // B1 (complex), gr, td, b0, pr, t1, T2, m0, save_all
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    _T td = 0;   // second  m_lNTime x 1
+    _T *td = NULL;   // second  m_lNTime x 1
     _T T1a = 10000., T2a=10000. ;
     _T *T1=&T1a, *T2=&T2a;   // second
 
-    long nRow, nCol, nPos, nTime;
+    size_t nPos, nTime;
     std::complex<_T> *pb1=NULL;
     _T* pgr=NULL, *pb0=NULL, *ppr=NULL, *pm0=NULL;
     std::stringstream buffer;
@@ -21,12 +22,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     if (nrhs < 8)
         mexErrMsgTxt("Wrong number of inputs.");
     
-    for (int i=1; i<8; i++)
+    for (int i=0; i<8; i++)
     #ifdef __SINGLE_PRECISION__
-        if (mxIsDouble(prhs[i]))
+        if (mxIsSingle(prhs[i]) == false)
             mexErrMsgTxt("all inputs must be single!");
     #else
-        if (mxIsSingle(prhs[i]))
+        if (mxIsDouble(prhs[i]) == false)
             mexErrMsgTxt("all inputs must be double!");
     #endif
 
@@ -58,13 +59,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     
 
     // --------- map td ---------
-    if (mxGetM(prhs[2]) * mxGetN(prhs[2]) != 1)
-        mexErrMsgTxt("Expected input for td is 1x1");
+    auto ltd = mxGetM(prhs[2]) * mxGetN(prhs[2]);
+    if (ltd != 1 && ltd != nTime)
+        mexErrMsgTxt("Expected input for td is 1 x 1 or 1 x nTime");
+
     #ifdef __SINGLE_PRECISION__
-    td = *mxGetSingles(prhs[2]);
+    td = mxGetSingles(prhs[2]);
     #else
-    td = *mxGetDoubles(prhs[2]);
+    td = mxGetDoubles(prhs[2]);
     #endif
+    std::vector <_T> vtd(nTime, *td);
+    if (ltd == 1)
+        td = vtd.data();
 
     // --------- map b0 ---------
     if (mxGetM(prhs[3]) * mxGetN(prhs[3]) != mxGetN(prhs[3])+mxGetM(prhs[3])-1)
@@ -132,7 +138,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (mxIsLogicalScalar(prhs[8]) && mxGetM(prhs[8]) != 0)
             saveAll = *mxGetLogicals(prhs[8]);
 
-    mwSize info, dims[3];
+    mwSize dims[3];
     dims[0] = 3;
     dims[1] = saveAll ? nTime+1 : 1;
     dims[2] = nPos;
